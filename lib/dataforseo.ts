@@ -49,6 +49,8 @@ async function makeDataForSeoRequest(
 ) {
   const auth = Buffer.from(`${credentials.login}:${credentials.password}`).toString('base64');
   
+  console.log(`📡 DataForSEO API call: ${endpoint}`);
+  
   const response = await fetch(`${DATAFORSEO_API_BASE}${endpoint}`, {
     method: 'POST',
     headers: {
@@ -59,10 +61,20 @@ async function makeDataForSeoRequest(
   });
 
   if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`❌ DataForSEO API error [${response.status}]:`, errorText);
     throw new Error(`DataForSEO API error: ${response.status} ${response.statusText}`);
   }
 
-  return response.json();
+  const result = await response.json();
+  
+  // Check for API-level errors
+  if (result.status_code && result.status_code !== 20000) {
+    console.error('❌ DataForSEO API error:', result.status_message);
+    throw new Error(`DataForSEO API error: ${result.status_message}`);
+  }
+
+  return result;
 }
 
 // Get advertisers data for a keyword
@@ -73,39 +85,76 @@ export async function getAdvertisersData(
 ): Promise<AdvertiserData> {
   const credentials = { login, password };
   
-  // Post task
-  const postData = [{
-    keyword,
-    location_code: 2380,
-    language_code: 'it',
-  }];
+  try {
+    // Post task
+    const postData = [{
+      keyword,
+      location_code: 2380, // Italy
+      language_code: 'it',
+    }];
 
-  const postResult = await makeDataForSeoRequest(
-    '/serp/google/ads_advertisers/task_post',
-    credentials,
-    postData
-  );
+    console.log(`  🔍 Searching ads for: "${keyword}"`);
 
-  if (!postResult.tasks || postResult.tasks.length === 0) {
-    throw new Error('No task created');
-  }
+    const postResult = await makeDataForSeoRequest(
+      '/serp/google/ads_advertisers/task_post',
+      credentials,
+      postData
+    );
 
-  const taskId = postResult.tasks[0].id;
+    if (!postResult.tasks || postResult.tasks.length === 0) {
+      console.warn('  ⚠️ No task created for advertisers');
+      return {
+        keyword,
+        advertisers: [],
+        total_count: 0,
+        competition_level: 0,
+      };
+    }
 
-  // Wait for task to complete
-  await new Promise(resolve => setTimeout(resolve, 5000));
+    const taskId = postResult.tasks[0].id;
+    console.log(`  ⏳ Task ID: ${taskId}, waiting 5s...`);
 
-  // Get results
-  const getResult = await makeDataForSeoRequest(
-    `/serp/google/ads_advertisers/task_get/advanced/${taskId}`,
-    credentials,
-    [{}]
-  );
+    // Wait for task to complete
+    await new Promise(resolve => setTimeout(resolve, 5000));
 
-  const task = getResult.tasks?.[0];
-  const result = task?.result?.[0];
+    // Get results
+    const getResult = await makeDataForSeoRequest(
+      `/serp/google/ads_advertisers/task_get/advanced/${taskId}`,
+      credentials,
+      [{}]
+    );
 
-  if (!result) {
+    const task = getResult.tasks?.[0];
+    const result = task?.result?.[0];
+
+    if (!result) {
+      console.warn('  ⚠️ No result data');
+      return {
+        keyword,
+        advertisers: [],
+        total_count: 0,
+        competition_level: 0,
+      };
+    }
+
+    const advertisers = (result.items || []).map((item: any) => ({
+      domain: item.domain || '',
+      position: item.rank_absolute || 0,
+      title: item.title || '',
+      description: item.description || '',
+      first_shown: item.first_shown,
+    }));
+
+    console.log(`  ✅ Found ${advertisers.length} advertisers`);
+
+    return {
+      keyword,
+      advertisers,
+      total_count: advertisers.length,
+      competition_level: result.se_results_count || 0,
+    };
+  } catch (error) {
+    console.error(`  ❌ Error fetching advertisers for "${keyword}":`, error);
     return {
       keyword,
       advertisers: [],
@@ -113,24 +162,9 @@ export async function getAdvertisersData(
       competition_level: 0,
     };
   }
-
-  const advertisers = (result.items || []).map((item: any) => ({
-    domain: item.domain || '',
-    position: item.rank_absolute || 0,
-    title: item.title || '',
-    description: item.description || '',
-    first_shown: item.first_shown,
-  }));
-
-  return {
-    keyword,
-    advertisers,
-    total_count: advertisers.length,
-    competition_level: result.se_results_count || 0,
-  };
 }
 
-// Get keyword metrics (search volume, CPC, competition)
+// Get keyword metrics (search volume, CPC, competition) - FIXED ENDPOINT
 export async function getKeywordMetrics(
   keyword: string,
   login: string,
@@ -138,41 +172,50 @@ export async function getKeywordMetrics(
 ): Promise<KeywordMetrics> {
   const credentials = { login, password };
   
-  const postData = [{
-    keywords: [keyword],
-    location_code: 2380,
-    language_code: 'it',
-  }];
-
   try {
+    const postData = [{
+      keywords: [keyword],
+      location_code: 2380, // Italy
+      language_code: 'it',
+    }];
+
+    console.log(`  📊 Fetching metrics for: "${keyword}"`);
+
+    // ✅ CORRECT ENDPOINT: Google Ads Search Volume Live
     const result = await makeDataForSeoRequest(
-      '/dataforseo_labs/google/keyword_ideas/live',
+      '/keywords_data/google_ads/search_volume/live',
       credentials,
       postData
     );
 
     const task = result.tasks?.[0];
-    const items = task?.result?.[0]?.items || [];
+    const items = task?.result || [];
     
     if (items.length === 0) {
+      console.warn(`  ⚠️ No metrics data, using defaults`);
       return {
-        search_volume: 1000,
+        search_volume: 100,
         cpc: 0.5,
         competition: 0.5,
       };
     }
 
     const item = items[0];
+    const searchVolume = item.search_volume || 100;
+    const cpc = item.cpc || 0.5;
+    const competition = item.competition || 0.5;
+    
+    console.log(`  ✅ Metrics: vol=${searchVolume}, cpc=€${cpc.toFixed(2)}, comp=${(competition * 100).toFixed(0)}%`);
     
     return {
-      search_volume: item.keyword_info?.search_volume || 1000,
-      cpc: item.keyword_info?.cpc || 0.5,
-      competition: item.keyword_info?.competition || 0.5,
+      search_volume: searchVolume,
+      cpc: cpc,
+      competition: competition,
     };
   } catch (error) {
-    console.error('Error fetching keyword metrics:', error);
+    console.error(`  ❌ Error fetching metrics for "${keyword}":`, error);
     return {
-      search_volume: 1000,
+      search_volume: 100,
       cpc: 0.5,
       competition: 0.5,
     };
@@ -187,15 +230,17 @@ export async function getOrganicPositions(
 ): Promise<number[]> {
   const credentials = { login, password };
   
-  const postData = [{
-    keyword,
-    location_code: 2380,
-    language_code: 'it',
-    device: 'desktop',
-    os: 'windows',
-  }];
-
   try {
+    const postData = [{
+      keyword,
+      location_code: 2380,
+      language_code: 'it',
+      device: 'desktop',
+      os: 'windows',
+    }];
+
+    console.log(`  🔎 Searching organic positions for: "${keyword}"`);
+
     const postResult = await makeDataForSeoRequest(
       '/serp/google/organic/task_post',
       credentials,
@@ -203,10 +248,13 @@ export async function getOrganicPositions(
     );
 
     if (!postResult.tasks || postResult.tasks.length === 0) {
+      console.warn('  ⚠️ No organic task created');
       return [];
     }
 
     const taskId = postResult.tasks[0].id;
+    console.log(`  ⏳ Task ID: ${taskId}, waiting 5s...`);
+
     await new Promise(resolve => setTimeout(resolve, 5000));
 
     const getResult = await makeDataForSeoRequest(
@@ -217,6 +265,7 @@ export async function getOrganicPositions(
 
     const result = getResult.tasks?.[0]?.result?.[0];
     if (!result || !result.items) {
+      console.warn('  ⚠️ No organic results');
       return [];
     }
 
@@ -225,14 +274,16 @@ export async function getOrganicPositions(
       .map((item: any) => item.rank_absolute || 0)
       .filter((pos: number) => pos > 0);
 
+    console.log(`  ✅ Found ${positions.length} organic positions`);
+
     return positions;
   } catch (error) {
-    console.error('Error fetching organic positions:', error);
+    console.error(`  ❌ Error fetching organic positions for "${keyword}":`, error);
     return [];
   }
 }
 
-// Get ad traffic forecast
+// Get ad traffic forecast - FIXED ENDPOINT
 export async function getAdTrafficForecast(
   keyword: string,
   login: string,
@@ -240,43 +291,49 @@ export async function getAdTrafficForecast(
 ): Promise<{ impressions: number; clicks: number; ctr: number; cost: number } | null> {
   const credentials = { login, password };
   
-  const postData = [{
-    keywords: [keyword],
-    location_code: 2380,
-    language_code: 'it',
-  }];
-
   try {
+    const postData = [{
+      keywords: [keyword],
+      location_code: 2380,
+      language_code: 'it',
+    }];
+
+    console.log(`  🔮 Forecasting ad traffic for: "${keyword}"`);
+
+    // ✅ CORRECT ENDPOINT: Ad Traffic By Keywords Live
     const result = await makeDataForSeoRequest(
-      '/dataforseo_labs/google/keyword_ideas/live',
+      '/keywords_data/google_ads/ad_traffic_by_keywords/live',
       credentials,
       postData
     );
 
     const task = result.tasks?.[0];
-    const items = task?.result?.[0]?.items || [];
+    const items = task?.result || [];
     
     if (items.length === 0) {
+      console.warn('  ⚠️ No forecast data');
       return null;
     }
 
     const item = items[0];
-    const searchVolume = item.keyword_info?.search_volume || 0;
-    const cpc = item.keyword_info?.cpc || 0;
     
-    const estimatedImpressions = Math.round(searchVolume * 0.6);
-    const estimatedCtr = 0.05;
-    const estimatedClicks = Math.round(estimatedImpressions * estimatedCtr);
-    const estimatedCost = Number((estimatedClicks * cpc).toFixed(2));
+    // DataForSEO returns estimated data
+    const impressions = item.impressions || 0;
+    const clicks = item.clicks || 0;
+    const ctr = clicks > 0 && impressions > 0 ? clicks / impressions : 0.05;
+    const cpc = item.cpc || 0;
+    const cost = Number((clicks * cpc).toFixed(2));
+
+    console.log(`  ✅ Forecast: ${impressions} imp, ${clicks} clicks, €${cost}`);
 
     return {
-      impressions: estimatedImpressions,
-      clicks: estimatedClicks,
-      ctr: estimatedCtr,
-      cost: estimatedCost,
+      impressions,
+      clicks,
+      ctr,
+      cost,
     };
   } catch (error) {
-    console.error('Error fetching ad traffic forecast:', error);
+    console.error(`  ❌ Error fetching forecast for "${keyword}":`, error);
     return null;
   }
 }
@@ -291,8 +348,12 @@ export async function analyzeKeywords(
 ): Promise<KeywordResult[]> {
   const results: KeywordResult[] = [];
 
+  console.log(`\n🚀 Starting analysis of ${keywords.length} keywords...\n`);
+
   for (let i = 0; i < keywords.length; i++) {
     const keyword = keywords[i];
+    
+    console.log(`[${i + 1}/${keywords.length}] Analyzing: "${keyword}"`);
     
     if (onProgress) {
       onProgress({
@@ -321,11 +382,13 @@ export async function analyzeKeywords(
         recommendation: 'TEST',
       });
 
+      console.log(`✅ [${i + 1}/${keywords.length}] "${keyword}" completed\n`);
+
       if (i < keywords.length - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
     } catch (error) {
-      console.error(`Error analyzing keyword "${keyword}":`, error);
+      console.error(`❌ Error analyzing keyword "${keyword}":`, error);
       results.push({
         keyword,
         advertisers: [],
@@ -339,6 +402,8 @@ export async function analyzeKeywords(
       });
     }
   }
+
+  console.log(`\n🎉 Analysis complete! ${results.length} keywords processed.\n`);
 
   return results;
 }
