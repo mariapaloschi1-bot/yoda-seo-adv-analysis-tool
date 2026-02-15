@@ -4,6 +4,8 @@
 
 'use client';
 
+import { Sparkles } from 'lucide-react';
+
 interface WelcomeScreenProps {
   onStart: () => void;
 }
@@ -11,16 +13,15 @@ interface WelcomeScreenProps {
 export default function WelcomeScreen({ onStart }: WelcomeScreenProps) {
   return (
     <div className="min-h-screen bg-stardust flex items-center justify-center p-6">
-      <div className="max-w-3xl w-full text-center">
+      <div className="max-w-4xl w-full text-center">
         
         {/* Baby Yoda Animated */}
-        <div className="flex justify-center mb-8">
+        <div className="flex justify-center mb-8 animate-bounce" style={{ animationDuration: '1.5s' }}>
           <div className="relative w-32 h-32 rounded-full border-4 border-teal-500/50 overflow-hidden shadow-[0_0_40px_rgba(45,212,191,0.4)] bg-slate-800">
             <img
               src="https://www.shutterstock.com/image-vector/baby-yoda-grogu-cartoon-character-260nw-2293123629.jpg"
               alt="Baby Yoda"
-              className="w-full h-full object-cover animate-bounce"
-              style={{ animationDuration: '1.5s' }}
+              className="w-full h-full object-cover"
             />
           </div>
         </div>
@@ -70,89 +71,51 @@ export default function WelcomeScreen({ onStart }: WelcomeScreenProps) {
                 <span className="text-teal-400 font-bold">3</span>
               </div>
               <div>
-                <h3 className="font-semibold text-teal-300 mb-1">Decisione Strategica AI (Paid vs Organic)</h3>
+                <h3 className="font-semibold text-teal-300 mb-1">Posizioni Organiche (SERP Analysis)</h3>
                 <p className="text-sm text-slate-400">
-                  Gemini AI ti suggerisce <strong>dove investire in paid</strong>, dove puntare su <strong>SEO organica</strong>, 
-                  e quali keyword testare. Include stima budget mensile.
+                  Top-20 risultati organici per ogni keyword: domini, posizioni, titoli. 
+                  Confronta chi domina il paid vs chi domina l'organico.
                 </p>
               </div>
             </div>
 
             <div className="flex items-start gap-4">
-              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-500/20 border border-amber-500/50 flex items-center justify-center">
-                <span className="text-amber-400 font-bold">⚡</span>
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-teal-500/20 border border-teal-500/50 flex items-center justify-center">
+                <span className="text-teal-400 font-bold">4</span>
               </div>
               <div>
-                <h3 className="font-semibold text-amber-300 mb-1">Bulk Analysis (fino a 150 keywords)</h3>
+                <h3 className="font-semibold text-teal-300 mb-1">Insights AI Strategici (Gemini)</h3>
                 <p className="text-sm text-slate-400">
-                  Analizza <strong>fino a 150 keyword in una volta sola</strong>. 
-                  Ricevi dashboard interattiva, grafici, tabelle esportabili in CSV.
+                  Raccomandazioni automatiche: quale keyword investire in paid, quali ottimizzare per SEO, 
+                  budget stimato, ROI previsto. Tutto generato da AI.
                 </p>
               </div>
             </div>
           </div>
+        </div>
 
-          {/* Requirements */}
-          <div className="bg-slate-900/70 border border-slate-700 rounded-lg p-5 mt-6">
-            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-3">
-              Requisiti (BYOK - Bring Your Own Key)
-            </h3>
-            <ul className="text-xs text-slate-500 space-y-2">
-              <li className="flex items-start gap-2">
-                <svg className="w-4 h-4 text-teal-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>
-                  <strong className="text-teal-400">DataForSEO API</strong> (login + password) — 
-                  deposito minimo $10, costo ~$0.60 per 150 keywords. 
-                  <a href="https://app.dataforseo.com/register" target="_blank" rel="noopener" className="underline hover:text-teal-300 ml-1">
-                    Registrati qui
-                  </a>
-                </span>
-              </li>
-              <li className="flex items-start gap-2">
-                <svg className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>
-                  <strong className="text-amber-400">Google Gemini API Key</strong> — 
-                  gratuita (15 req/min), nessun costo sotto quota free tier. 
-                  <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" className="underline hover:text-amber-300 ml-1">
-                    Ottieni chiave
-                  </a>
-                </span>
-              </li>
-              <li className="flex items-start gap-2">
-                <svg className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-                <span>
-                  Tutte le chiavi sono <strong>salvate solo nel tuo browser</strong> (localStorage), 
-                  mai inviate ai nostri server. BYOK = massima sicurezza.
-                </span>
-              </li>
-            </ul>
-          </div>
-
-          {/* Cost estimate */}
-          <div className="bg-amber-900/20 border border-amber-600/30 rounded-lg p-4 text-center">
-            <p className="text-sm text-amber-300">
-              <strong>Costo per analisi</strong>: ~€0.55 per 150 keywords 
-              (vs SEMrush €119/mese → <strong className="text-teal-400">risparmio 99.5%</strong>)
-            </p>
-          </div>
+        {/* BYOK Cost Notice */}
+        <div className="bg-amber-900/30 border border-amber-600/50 rounded-xl p-5 mb-8">
+          <p className="text-amber-200 text-sm">
+            <strong>💰 Bring Your Own Key (BYOK):</strong> Usa le tue API key DataForSEO e Gemini. 
+            Costo stimato: <strong>~€0.55 per 150 keywords</strong> (vs SEMrush €119/mese).
+          </p>
         </div>
 
         {/* Start Button */}
         <button
           onClick={onStart}
-          className="bg-teal-600 hover:bg-teal-500 text-white px-12 py-5 rounded-2xl font-bold text-xl shadow-[0_0_30px_rgba(20,184,166,0.5)] hover:shadow-[0_0_40px_rgba(20,184,166,0.7)] transition transform hover:-translate-y-1 hover:scale-105 border border-teal-400/20"
+          className="group relative px-10 py-5 bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-500 hover:to-teal-400 text-white font-bold text-lg rounded-xl shadow-[0_0_30px_rgba(45,212,191,0.5)] hover:shadow-[0_0_50px_rgba(45,212,191,0.8)] transition-all duration-300 transform hover:scale-105"
         >
-          Inizia l'Analisi →
+          <span className="flex items-center gap-3">
+            <Sparkles className="w-6 h-6" />
+            Inizia Analisi Paid vs Organic
+            <Sparkles className="w-6 h-6" />
+          </span>
         </button>
 
-        <p className="text-xs text-slate-600 mt-6 italic">
-          "Pazienza avere devi. Tempo e crediti l'analisi richiede." — Maestro Yoda
+        <p className="text-slate-500 text-sm mt-6">
+          Analizza fino a 150 keywords in una sessione
         </p>
       </div>
     </div>
