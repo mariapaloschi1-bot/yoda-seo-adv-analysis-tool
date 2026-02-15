@@ -1,3 +1,4 @@
+// app/page.tsx - FIXED: compatibilità con Dashboard arricchita
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -72,10 +73,12 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           keywords: keywordList,
-          dataForSeoLogin: apiKeys.dataForSeo.login,
-          dataForSeoPassword: apiKeys.dataForSeo.password,
-          geminiKey: apiKeys.gemini,
-          options: analysisOptions,
+          dataforseo_login: apiKeys.dataForSeo.login,
+          dataforseo_password: apiKeys.dataForSeo.password,
+          gemini_api_key: apiKeys.gemini,
+          brand_domain: '', // opzionale
+          includeOrganicPositions: analysisOptions.includeOrganicPositions,
+          includeAdTrafficForecast: analysisOptions.includeAdTrafficForecast
         })
       });
 
@@ -90,29 +93,11 @@ export default function Home() {
         throw new Error(apiResult.error || 'Analysis failed');
       }
 
-      const transformedResults = apiResult.results.map((r: any) => ({
-        keyword: r.keyword,
-        advertisers: r.advertisers || [],
-        metrics: r.metrics || { search_volume: 0, cpc: 0, competition: 0 },
-        organic_positions: r.organic_positions || [],
-        ad_traffic_forecast: r.ad_traffic_forecast || null,
-        recommendation: determineRecommendation(r)
-      }));
-
-      const yesCount = transformedResults.filter((r: any) => r.recommendation === 'YES_PAID').length;
-      const noCount = transformedResults.filter((r: any) => r.recommendation === 'NO_PAID').length;
-      const testCount = transformedResults.filter((r: any) => r.recommendation === 'TEST').length;
-
+      // ✅ Usa direttamente i dati dalla API (già nel formato corretto)
       const analysis: AnalysisResult = {
-        results: transformedResults,
+        results: apiResult.results,
         insights: apiResult.insights,
-        summary: {
-          totalKeywords: transformedResults.length,
-          yes_paid: yesCount,
-          no_paid: noCount,
-          test: testCount,
-          total_budget_estimate: apiResult.insights.budget_estimate
-        }
+        summary: apiResult.summary
       };
 
       setAnalysisResult(analysis);
@@ -125,59 +110,28 @@ export default function Home() {
     }
   };
 
-  function determineRecommendation(result: any): 'YES_PAID' | 'NO_PAID' | 'TEST' | 'OPPORTUNITY' {
-    const advertiserCount = result.advertisers?.length || 0;
-    const organicCount = result.organic_positions?.length || 0;
-    const cpc = result.metrics?.cpc || 0;
-    const competition = result.metrics?.competition || 0;
-    const volume = result.metrics?.search_volume || 0;
-
-    if (advertiserCount === 0 && competition > 0.5) {
-      return 'OPPORTUNITY';
-    }
-    
-    if (advertiserCount === 0 && competition < 0.3) {
-      return 'NO_PAID';
-    }
-    
-    if (advertiserCount > 5 && cpc > 1.0 && competition > 0.6) {
-      return 'YES_PAID';
-    }
-    
-    if (volume > 1000 && competition > 0.4 && advertiserCount > 2) {
-      return 'TEST';
-    }
-    
-    if (organicCount > 0 && result.organic_positions[0]?.position <= 3 && advertiserCount > 3) {
-      return 'YES_PAID';
-    }
-    
-    return 'TEST';
-  }
-
   const keywordCount = keywords.split('\n').filter(k => k.trim()).length;
 
-  const baseCost = 0.525;
-  const organicCost = analysisOptions.includeOrganicPositions ? 0.30 : 0;
-  const forecastCost = analysisOptions.includeAdTrafficForecast ? 0.075 : 0;
-  const totalCostPerKeyword = baseCost + organicCost + forecastCost;
-  const estimatedCost = (totalCostPerKeyword * keywordCount).toFixed(2);
+  // 💰 COSTI CORRETTI (come in route.ts)
+  const searchVolumeCost = 0.075;
+  const adTrafficCost = analysisOptions.includeAdTrafficForecast ? 0.075 : 0;
+  const advertisersCost = keywordCount * 0.002;
+  const organicCost = analysisOptions.includeOrganicPositions ? keywordCount * 0.0015 : 0;
+  const totalCostUSD = searchVolumeCost + adTrafficCost + advertisersCost + organicCost;
+  const totalCostEUR = totalCostUSD * 0.93;
+  const estimatedCost = totalCostEUR.toFixed(2);
 
   if (state === 'welcome') {
     return <WelcomeScreen onStart={handleWelcomeStart} />;
   }
 
   if (state === 'loading') {
-    const costPerKeyword = 0.45 + 0.075 + 
-      (analysisOptions.includeOrganicPositions ? 0.30 : 0) + 
-      (analysisOptions.includeAdTrafficForecast ? 0.075 : 0);
-    
     return (
       <LoadingScreen 
         currentKeyword={loadingState.keyword} 
         progress={loadingState.current} 
         total={loadingState.total}
-        costPerKeyword={costPerKeyword}
+        costPerKeyword={totalCostUSD / keywordCount}
         optionsActive={{
           organic: analysisOptions.includeOrganicPositions,
           forecast: analysisOptions.includeAdTrafficForecast
@@ -187,7 +141,8 @@ export default function Home() {
   }
 
   if (state === 'dashboard' && analysisResult) {
-    return <Dashboard analysisResult={analysisResult} onReset={() => setState('input')} />;
+    // ✅ FIXED: passa "results" invece di "analysisResult"
+    return <Dashboard results={analysisResult} />;
   }
 
   if (state === 'error') {
@@ -212,7 +167,7 @@ export default function Home() {
     );
   }
 
-  // INPUT VIEW - (resto del codice uguale)
+  // INPUT VIEW
   return (
     <div className="min-h-screen bg-stardust">
       <div className="max-w-5xl mx-auto p-6 lg:p-12 font-sans">
@@ -243,6 +198,7 @@ export default function Home() {
 
           <div className="p-8 space-y-10">
             
+            {/* DataForSEO Credentials */}
             <div className="bg-teal-900/20 border-2 border-teal-600/50 rounded-xl p-6 relative overflow-hidden">
               <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-teal-500/10 blur-2xl"></div>
               
@@ -316,6 +272,7 @@ export default function Home() {
               </div>
             </div>
 
+            {/* Gemini API Key */}
             <div className="bg-amber-900/20 border-2 border-amber-600/50 rounded-xl p-6 relative overflow-hidden">
               <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-amber-500/10 blur-2xl"></div>
               
@@ -378,6 +335,7 @@ export default function Home() {
               </div>
             </div>
 
+            {/* Keywords Input */}
             <div>
               <label className="block text-xs font-bold text-teal-500 uppercase tracking-widest mb-2">
                 Le Tue Keywords
@@ -397,20 +355,22 @@ export default function Home() {
               </p>
             </div>
 
+            {/* Cost Estimate */}
             {keywordCount > 0 && (
               <div className="bg-amber-900/20 border border-amber-600/40 rounded-lg p-4">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-slate-400">Costo stimato per questa analisi:</span>
-                  <span className="text-xl font-bold text-amber-400">~€{estimatedCost}</span>
+                  <span className="text-xl font-bold text-amber-400">€{estimatedCost}</span>
                 </div>
                 <p className="text-xs text-slate-500 mt-1">
-                  {keywordCount} keyword × ${totalCostPerKeyword.toFixed(3)}/kw
-                  {!analysisOptions.includeOrganicPositions && ' (senza SERP organic)'}
-                  {analysisOptions.includeAdTrafficForecast && ' (+ forecast traffico)'}
+                  {keywordCount} keywords • $0.075 batch + ${advertisersCost.toFixed(3)} advertisers
+                  {analysisOptions.includeOrganicPositions && ` + $${organicCost.toFixed(3)} organic`}
+                  {analysisOptions.includeAdTrafficForecast && ` + $0.075 forecast`}
                 </p>
               </div>
             )}
 
+            {/* Submit Button */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 pt-4">
               <button
                 onClick={handleSubmit}
