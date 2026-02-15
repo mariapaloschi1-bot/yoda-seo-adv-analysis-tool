@@ -348,12 +348,12 @@ export default function Dashboard({ results }: DashboardProps) {
                 </div>
                 <div className="flex-1">
                   <h3 className="text-xl font-bold text-white mb-3">Strategia Generale</h3>
-                  <p className="text-gray-300 leading-relaxed">{insights.strategy}</p>
+                  <p className="text-gray-300 leading-relaxed">{insights.summary}</p>
                 </div>
               </div>
             </div>
 
-            {/* Quick Wins */}
+            {/* Raccomandazioni */}
             <div className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-xl p-6">
               <div className="flex items-start gap-4">
                 <div className="p-3 bg-green-500/20 rounded-lg">
@@ -362,14 +362,14 @@ export default function Dashboard({ results }: DashboardProps) {
                   </svg>
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-xl font-bold text-white mb-3">Quick Wins</h3>
+                  <h3 className="text-xl font-bold text-white mb-3">Raccomandazioni Strategiche</h3>
                   <ul className="space-y-2">
-                    {insights.quick_wins.map((win, idx) => (
+                    {insights.recommendations.map((rec, idx) => (
                       <li key={idx} className="flex items-start gap-2 text-gray-300">
                         <svg className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
                         </svg>
-                        <span>{win}</span>
+                        <span>{rec}</span>
                       </li>
                     ))}
                   </ul>
