@@ -1,209 +1,199 @@
-/**
- * Analyzer Logic
- * Brand vs Generic keyword analysis + recommendation engine
- */
-
 import { KeywordResult } from './dataforseo';
-import { generateInsights, GeminiInsight } from './gemini';
+import { generateInsights } from './gemini';
+
+export type Recommendation = 'NO_PAID' | 'YES_PAID' | 'TEST' | 'OPPORTUNITY';
 
 export interface AnalysisResult {
   results: KeywordResult[];
-  insights: GeminiInsight;
   summary: {
-    total: number;
-    yes_paid: number;
-    no_paid: number;
+    totalKeywords: number;
+    yesPaid: number;
+    noPaid: number;
     test: number;
-    total_budget_estimate: string;
+    opportunity: number;
+    totalBudget: number;
   };
 }
 
-/**
- * Analyze keywords and generate recommendations
- */
-export async function analyzeKeywordResults(
-  results: KeywordResult[],
-  geminiApiKey: string,
-  brandDomains: string[] = []
-): Promise<AnalysisResult> {
-  
-  // Step 1: Detect brand keywords and apply logic
-  const analyzedResults = results.map(result => {
-    const isBrand = isBrandKeyword(result.keyword, brandDomains);
-    const recommendation = determineRecommendation(result, isBrand);
-    
-    return {
-      ...result,
-      recommendation
-    };
-  });
-
-  // Step 2: Generate AI insights
-  const insights = await generateInsights(analyzedResults, geminiApiKey, brandDomains[0]);
-
-  // Step 3: Calculate summary
-  const summary = {
-    total: analyzedResults.length,
-    yes_paid: analyzedResults.filter(r => r.recommendation === 'YES_PAID').length,
-    no_paid: analyzedResults.filter(r => r.recommendation === 'NO_PAID').length,
-    test: analyzedResults.filter(r => r.recommendation === 'TEST').length,
-    total_budget_estimate: insights.budget_estimate
-  };
-
-  return {
-    results: analyzedResults,
-    insights,
-    summary
-  };
-}
-
-/**
- * Determine if keyword is brand-related
- */
-function isBrandKeyword(keyword: string, brandDomains: string[]): boolean {
-  if (brandDomains.length === 0) return false;
-  
-  const lowerKeyword = keyword.toLowerCase();
-  
-  return brandDomains.some(domain => {
-    const brandName = domain.replace(/\.(com|it|net|org)$/, '').toLowerCase();
-    return lowerKeyword.includes(brandName);
-  });
-}
-
-/**
- * Core recommendation logic
- */
+// Determine recommendation based on competitive analysis
 function determineRecommendation(
-  result: KeywordResult,
-  isBrand: boolean
-): 'YES_PAID' | 'NO_PAID' | 'TEST' {
+  keyword: string,
+  advertisers: number,
+  organicPositions: number[],
+  metrics: { search_volume: number; cpc: number; competition: number },
+  brandDomain?: string
+): Recommendation {
+  const organicPos = organicPositions || [];
+  const top3Count = organicPos.filter(pos => pos <= 3).length;
+  const top10Count = organicPos.filter(pos => pos <= 10).length;
   
-  const { advertisers, metrics, organic_positions } = result;
-  const totalAdvertisers = advertisers.length;
-  const { cpc, competition, search_volume } = metrics;
+  const isBrandKeyword = brandDomain && keyword.toLowerCase().includes(brandDomain.toLowerCase());
 
-  // BRAND KEYWORD LOGIC
-  if (isBrand) {
-    // If brand has 3-4+ top-3 organic positions → NO paid
-    const top3Count = organic_positions.filter(pos => pos <= 3).length;
-    
+  // Brand keyword logic
+  if (isBrandKeyword) {
     if (top3Count >= 3) {
       return 'NO_PAID';
-    }
-    
-    // If competitors are bidding → YES paid (defensive)
-    if (totalAdvertisers > 2) {
+    } else if (advertisers > 2) {
       return 'YES_PAID';
+    } else {
+      return 'TEST';
     }
-    
-    return 'TEST';
   }
 
-  // GENERIC KEYWORD LOGIC
-  
-  // High competition + high CPC + many advertisers → YES paid
-  if (competition > 0.7 && cpc > 1.5 && totalAdvertisers > 8) {
+  // Generic keyword logic
+  const { search_volume, cpc, competition } = metrics;
+
+  if (competition > 0.7 && cpc > 1.5 && advertisers > 8) {
     return 'YES_PAID';
   }
 
-  // Low competition + low CPC + few advertisers → NO paid (focus SEO)
-  if (competition < 0.3 && cpc < 0.5 && totalAdvertisers < 3) {
+  if (competition < 0.3 && cpc < 0.5 && advertisers < 3) {
     return 'NO_PAID';
   }
 
-  // High volume + medium competition → YES paid (opportunity)
-  if (search_volume > 5000 && competition > 0.5 && totalAdvertisers > 5) {
+  if (search_volume > 5000 && competition > 0.5 && advertisers > 5) {
     return 'YES_PAID';
   }
 
-  // Low volume + high CPC → NO paid (not worth it)
   if (search_volume < 500 && cpc > 2) {
     return 'NO_PAID';
   }
 
-  // Everything else → TEST
+  if (top3Count >= 2) {
+    return 'OPPORTUNITY';
+  }
+
   return 'TEST';
 }
 
-/**
- * Calculate monthly budget estimate for a keyword
- */
-export function calculateKeywordBudget(result: KeywordResult): number {
-  const { metrics } = result;
-  const { search_volume, cpc } = metrics;
+// Calculate estimated monthly budget
+function calculateBudget(
+  searchVolume: number,
+  cpc: number,
+  recommendation: Recommendation
+): number {
+  if (recommendation === 'NO_PAID') return 0;
   
-  // Assume 2% CTR and 30-day month
-  const estimatedClicks = search_volume * 0.02;
+  const estimatedClicks = searchVolume * 0.02;
   return Math.round(estimatedClicks * cpc);
 }
 
-/**
- * Export results to CSV format
- */
+// Main analysis function
+export function analyzeKeywordResults(
+  results: KeywordResult[],
+  brandDomain?: string
+): AnalysisResult {
+  const analyzedResults = results.map(result => {
+    const recommendation = determineRecommendation(
+      result.keyword,
+      result.advertisers.length,
+      result.organic_positions || [],
+      result.metrics,
+      brandDomain
+    );
+
+    const budget = calculateBudget(
+      result.metrics.search_volume,
+      result.metrics.cpc,
+      recommendation
+    );
+
+    return {
+      ...result,
+      recommendation,
+      estimated_budget: budget,
+    };
+  });
+
+  const summary = {
+    totalKeywords: results.length,
+    yesPaid: analyzedResults.filter(r => r.recommendation === 'YES_PAID').length,
+    noPaid: analyzedResults.filter(r => r.recommendation === 'NO_PAID').length,
+    test: analyzedResults.filter(r => r.recommendation === 'TEST').length,
+    opportunity: analyzedResults.filter(r => r.recommendation === 'OPPORTUNITY').length,
+    totalBudget: analyzedResults.reduce((sum, r) => sum + (r.estimated_budget || 0), 0),
+  };
+
+  return {
+    results: analyzedResults,
+    summary,
+  };
+}
+
+// Export results to CSV
 export function exportToCSV(results: KeywordResult[]): string {
   const headers = [
     'Keyword',
-    'Advertisers',
-    'CPC (€)',
-    'Competition',
     'Search Volume',
+    'CPC',
+    'Competition',
+    'Advertisers Count',
+    'Top Advertisers',
+    'Organic Positions',
     'Recommendation',
-    'Estimated Budget (€/month)',
-    'Top Advertiser',
-    'Top Advertiser Position'
+    'Estimated Budget'
   ];
 
-  const rows = results.map(r => {
-    const topAdvertiser = r.advertisers[0] || null;
+  const rows = results.map(result => {
+    const topAdvertisers = result.advertisers
+      .slice(0, 3)
+      .map(a => a.domain)
+      .join('; ');
+
+    const organicPos = result.organic_positions || [];
+    const organicPosStr = organicPos.length > 0 ? organicPos.join(', ') : 'N/A';
+
     return [
-      r.keyword,
-      r.advertisers.length,
-      r.metrics.cpc.toFixed(2),
-      (r.metrics.competition * 100).toFixed(0) + '%',
-      r.metrics.search_volume,
-      r.recommendation,
-      calculateKeywordBudget(r),
-      topAdvertiser?.domain || 'N/A',
-      topAdvertiser?.position || 'N/A'
-    ].join(',');
+      result.keyword,
+      result.metrics.search_volume,
+      result.metrics.cpc.toFixed(2),
+      (result.metrics.competition * 100).toFixed(0) + '%',
+      result.advertisers.length,
+      topAdvertisers,
+      organicPosStr,
+      result.recommendation,
+      calculateBudget(result.metrics.search_volume, result.metrics.cpc, result.recommendation)
+    ];
   });
 
-  return [headers.join(','), ...rows].join('\n');
+  const csvContent = [
+    headers.join(','),
+    ...rows.map(row => row.join(','))
+  ].join('\n');
+
+  return csvContent;
 }
 
-/**
- * Get recommendation color and icon
- */
-export function getRecommendationStyle(rec: string): {
+// Get badge styling for recommendation
+export function getRecommendationBadge(recommendation: Recommendation): {
   color: string;
   icon: string;
   label: string;
 } {
-  switch (rec) {
+  switch (recommendation) {
     case 'YES_PAID':
       return {
-        color: 'text-red-400',
-        icon: '🔴',
-        label: 'SI - Investi in Paid'
+        color: 'bg-green-100 text-green-800 border-green-200',
+        icon: '💰',
+        label: 'Investi in Paid'
       };
     case 'NO_PAID':
       return {
-        color: 'text-green-400',
-        icon: '🟢',
-        label: 'NO - Focus SEO'
+        color: 'bg-red-100 text-red-800 border-red-200',
+        icon: '🚫',
+        label: 'Non Investire'
       };
     case 'TEST':
       return {
-        color: 'text-yellow-400',
-        icon: '🟡',
-        label: 'TEST - Budget limitato'
+        color: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+        icon: '🧪',
+        label: 'Testa'
       };
-    default:
+    case 'OPPORTUNITY':
       return {
-        color: 'text-gray-400',
-        icon: '⚪',
-        label: 'Sconosciuto'
+        color: 'bg-purple-100 text-purple-800 border-purple-200',
+        icon: '⭐',
+        label: 'Opportunità'
       };
   }
 }
