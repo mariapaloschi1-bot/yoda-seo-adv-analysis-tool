@@ -123,14 +123,28 @@ async function getAdvertisersLive(keyword: string, login: string, password: stri
 
   const data = await response.json();
   
+  // 🔍 DEBUG: Log risposta completa DataForSEO
+  console.log('[DataForSEO] ===== RISPOSTA COMPLETA ADVERTISERS =====');
+  console.log('[DataForSEO] Status Code:', data.tasks?.[0]?.status_code);
+  console.log('[DataForSEO] Status Message:', data.tasks?.[0]?.status_message);
+  console.log('[DataForSEO] Cost:', data.tasks?.[0]?.cost);
+  console.log('[DataForSEO] Result Count:', data.tasks?.[0]?.result_count);
+  
   if (data.tasks?.[0]?.status_code !== 20000) {
     const errorMsg = data.tasks?.[0]?.status_message || 'Unknown error';
-    console.warn('[DataForSEO] Advertisers task failed:', errorMsg);
+    console.error('[DataForSEO] ❌ Advertisers task failed:', errorMsg);
+    console.error('[DataForSEO] Full response:', JSON.stringify(data, null, 2));
     return { keyword, advertisers: [], total: 0 };
   }
 
   const items = data.tasks[0]?.result?.[0]?.items || [];
-  console.log(`[DataForSEO] Found ${items.length} advertiser items`);
+  console.log(`[DataForSEO] ✅ Found ${items.length} advertiser items`);
+  
+  // 🔍 DEBUG: Log primi 3 items raw
+  console.log('[DataForSEO] First 3 items (raw):');
+  items.slice(0, 3).forEach((item: any, idx: number) => {
+    console.log(`  [${idx}] type:${item.type}, title:${item.title}, advertiser_id:${item.advertiser_id}`);
+  });
 
   // Filtra SOLO ads_advertiser e ads_multi_account_advertiser
   const advertisers = items
@@ -146,7 +160,18 @@ async function getAdvertisersLive(keyword: string, login: string, password: stri
       approx_ads_count: ad.approx_ads_count || ad.advertisers?.reduce((sum: number, a: any) => sum + (a.approx_ads_count || 0), 0) || 0
     }));
 
-  console.log(`[DataForSEO] Extracted ${advertisers.length} advertisers`);
+  console.log(`[DataForSEO] ✅ Extracted ${advertisers.length} advertisers after filtering`);
+  
+  // 🔍 DEBUG: Log advertisers estratti
+  if (advertisers.length > 0) {
+    console.log('[DataForSEO] Advertisers estratti:');
+    advertisers.slice(0, 3).forEach((adv: any, idx: number) => {
+      console.log(`  [${idx}] ${adv.title} - ${adv.approx_ads_count} ads`);
+    });
+  } else {
+    console.warn('[DataForSEO] ⚠️ NESSUN ADVERTISER ESTRATTO! Verifica se items contiene ads_advertiser o ads_multi_account_advertiser');
+    console.log('[DataForSEO] Item types presenti:', [...new Set(items.map((i: any) => i.type))]);
+  }
 
   return {
     keyword,
@@ -239,15 +264,24 @@ async function getKeywordMetricsLive(keyword: string, login: string, password: s
 
   const data = await response.json();
   
+  // 🔍 DEBUG: Log risposta metrics
+  console.log('[DataForSEO] ===== RISPOSTA METRICS =====');
+  console.log('[DataForSEO] Status Code:', data.tasks?.[0]?.status_code);
+  console.log('[DataForSEO] Status Message:', data.tasks?.[0]?.status_message);
+  
   if (data.tasks?.[0]?.status_code !== 20000) {
-    console.warn('[DataForSEO] Metrics task failed:', data.tasks?.[0]?.status_message);
+    console.error('[DataForSEO] ❌ Metrics task failed:', data.tasks?.[0]?.status_message);
+    console.error('[DataForSEO] Full response:', JSON.stringify(data, null, 2));
     return { search_volume: 0, cpc: 0, competition: 0 };
   }
 
   const result = data.tasks?.[0]?.result?.[0];
+  
+  // 🔍 DEBUG: Log result raw
+  console.log('[DataForSEO] Result object:', JSON.stringify(result, null, 2));
 
   if (!result) {
-    console.warn('[DataForSEO] No metrics found, using defaults');
+    console.warn('[DataForSEO] ⚠️ No metrics found, using defaults');
     return { search_volume: 0, cpc: 0, competition: 0 };
   }
 
@@ -257,7 +291,7 @@ async function getKeywordMetricsLive(keyword: string, login: string, password: s
     competition: result.competition || 0
   };
 
-  console.log(`[DataForSEO] Metrics: vol=${metrics.search_volume}, cpc=€${metrics.cpc.toFixed(2)}, comp=${(metrics.competition * 100).toFixed(0)}%`);
+  console.log(`[DataForSEO] ✅ Metrics: vol=${metrics.search_volume}, cpc=€${metrics.cpc.toFixed(2)}, comp=${(metrics.competition * 100).toFixed(0)}%`);
 
   return metrics;
 }
@@ -288,82 +322,77 @@ REGOLE DECISIONALI:
 - Considera ROI: volume × CTR stimato (2% paid, 5% organico pos 1-3) × CPC
 - Budget mensile = volume × 0.02 × CPC (per paid)
 
-Rispondi in JSON valido:
+Rispondi SOLO con JSON valido (no markdown):
 {
-  "summary": "Sintesi in 3-4 frasi: quante keyword hanno paid attivo, quante sono in top-10 organico, opportunità principali",
+  "summary": "Panoramica generale 2-3 frasi",
   "recommendations": [
-    "1. Raccomandazione strategica basata su paid vs organic",
-    "2. Seconda raccomandazione...",
-    "3. Terza..."
+    "Raccomandazione strategica 1",
+    "Raccomandazione strategica 2",
+    "..."
   ],
-  "budget_estimate": "€X - €Y al mese",
-  "priority_keywords": ["keyword1", "keyword2", "keyword3"]
+  "budget_estimate": "Stima budget totale mensile (es: €500-€800/mese)",
+  "priority_keywords": ["keyword1", "keyword2", "..."]
 }
 `;
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
-      })
-    }
-  );
+  const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + apiKey, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 2048
+      }
+    })
+  });
 
   if (!response.ok) {
-    throw new Error(`Gemini error: ${response.status}`);
+    throw new Error(`Gemini API error: ${response.status}`);
   }
 
   const data = await response.json();
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
-  // Parse JSON
-  const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/\{[\s\S]*\}/);
   
-  if (jsonMatch) {
-    const parsed = JSON.parse(jsonMatch[1] || jsonMatch[0]);
-    return {
-      summary: parsed.summary || '',
-      recommendations: parsed.recommendations || [],
-      budget_estimate: parsed.budget_estimate || 'N/A',
-      priority_keywords: parsed.priority_keywords || []
-    };
+  // Extract JSON from markdown if present
+  const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/) || text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error('No valid JSON in Gemini response');
   }
 
-  throw new Error('Failed to parse Gemini response');
+  const insights = JSON.parse(jsonMatch[1] || jsonMatch[0]);
+  
+  return {
+    summary: insights.summary || 'Analisi completata',
+    recommendations: insights.recommendations || [],
+    budget_estimate: insights.budget_estimate || 'N/A',
+    priority_keywords: insights.priority_keywords || []
+  };
 }
 
-// Fallback insights (UPDATED)
+// Fallback insights (simple calculation)
 function generateFallbackInsights(results: any[]) {
-  const validResults = results.filter(r => r.success);
-  const totalAdvertisers = validResults.reduce((sum, r) => sum + (r.advertisers?.length || 0), 0);
-  const totalOrganic = validResults.reduce((sum, r) => sum + (r.organic_positions?.length || 0), 0);
-  const avgAdvertisers = totalAdvertisers / validResults.length;
-  const avgCPC = validResults.reduce((sum, r) => sum + (r.metrics?.cpc || 0), 0) / validResults.length;
-  const totalVolume = validResults.reduce((sum, r) => sum + (r.metrics?.search_volume || 0), 0);
+  const successful = results.filter(r => r.success);
   
-  const yesCount = validResults.filter(r => (r.advertisers?.length || 0) > 5 && (r.metrics?.cpc || 0) > 1).length;
-  const noCount = validResults.filter(r => (r.advertisers?.length || 0) === 0 && (r.metrics?.competition || 0) < 0.3).length;
-  const testCount = validResults.length - yesCount - noCount;
+  const totalAdvertisers = successful.reduce((sum, r) => sum + (r.advertisers?.length || 0), 0);
+  const avgAdvertisers = successful.length > 0 ? totalAdvertisers / successful.length : 0;
+  const avgCpc = successful.length > 0 
+    ? successful.reduce((sum, r) => sum + (r.metrics?.cpc || 0), 0) / successful.length 
+    : 0;
+  const totalVolume = successful.reduce((sum, r) => sum + (r.metrics?.search_volume || 0), 0);
 
-  const budgetLow = Math.round(totalVolume * 0.015 * avgCPC);
-  const budgetHigh = Math.round(totalVolume * 0.025 * avgCPC);
+  const highValueKeywords = successful
+    .filter(r => (r.advertisers?.length || 0) > 3 && (r.metrics?.cpc || 0) > 1.0)
+    .map(r => r.keyword);
 
   return {
-    summary: `Analizzate ${validResults.length} keywords: ${yesCount} con paid attivo (media ${avgAdvertisers.toFixed(1)} bidders), ${totalOrganic} posizioni organiche trovate, CPC medio €${avgCPC.toFixed(2)}.`,
+    summary: `Analizzate ${successful.length} keywords. Media ${avgAdvertisers.toFixed(1)} advertiser per keyword, CPC medio €${avgCpc.toFixed(2)}.`,
     recommendations: [
-      `Investi in paid advertising per ${yesCount} keyword ad alta competizione (CPC >€1.00, multiple bidder).`,
-      `Focus su SEO organico per ${noCount} keyword senza paid attivo (bassa competizione, opportunità organiche).`,
-      `Testa ${testCount} keyword con approccio ibrido: monitora performance paid vs organic.`,
-      `Budget raccomandato: €${budgetLow}-€${budgetHigh}/mese per copertura paid sulle keyword prioritarie.`
+      avgAdvertisers > 5 ? 'Alta competizione paid: valuta campagne mirate' : 'Bassa competizione: opportunità per investire in paid',
+      totalVolume > 10000 ? 'Volume di ricerca significativo: potenziale ROI elevato' : 'Volume limitato: focus su long-tail keywords',
+      highValueKeywords.length > 0 ? `Keywords ad alto valore: ${highValueKeywords.slice(0, 3).join(', ')}` : 'Nessuna keyword ad alto valore identificata'
     ],
-    budget_estimate: `€${budgetLow} - €${budgetHigh}`,
-    priority_keywords: validResults
-      .filter(r => (r.advertisers?.length || 0) > 3 && (r.metrics?.volume || 0) > 500)
-      .slice(0, 5)
-      .map(r => r.keyword)
+    budget_estimate: `€${Math.round(totalVolume * 0.02 * avgCpc)}-€${Math.round(totalVolume * 0.03 * avgCpc)}/mese`,
+    priority_keywords: highValueKeywords.slice(0, 5)
   };
 }
