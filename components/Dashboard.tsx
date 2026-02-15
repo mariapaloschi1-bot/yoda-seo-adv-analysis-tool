@@ -1,430 +1,616 @@
-/**
- * Dashboard - Professional & Elegant Style
- */
-
+// components/Dashboard.tsx - Dashboard Arricchita con Grafici e Export
 'use client';
 
+import { AnalysisResult } from '@/lib/analyzer';
+import { exportToCSV } from '@/lib/analyzer';
 import { useState } from 'react';
-import { AnalysisResult, getRecommendationStyle, exportToCSV, calculateKeywordBudget } from '@/lib/analyzer';
 
 interface DashboardProps {
-  analysisResult: AnalysisResult;
-  onReset: () => void;
+  results: AnalysisResult;
 }
 
-export default function Dashboard({ analysisResult, onReset }: DashboardProps) {
-  const [selectedKeyword, setSelectedKeyword] = useState<string | null>(null);
-  const { results, insights, summary } = analysisResult;
+export default function Dashboard({ results }: DashboardProps) {
+  const [activeTab, setActiveTab] = useState<'overview' | 'keywords' | 'insights' | 'charts'>('overview');
+  const { results: keywords, insights, summary } = results;
 
+  // 📊 Calcolo statistiche per grafici
+  const competitionDistribution = {
+    low: keywords.filter(k => k.metrics.competition < 0.3).length,
+    medium: keywords.filter(k => k.metrics.competition >= 0.3 && k.metrics.competition < 0.7).length,
+    high: keywords.filter(k => k.metrics.competition >= 0.7).length
+  };
+
+  const volumeDistribution = {
+    veryLow: keywords.filter(k => k.metrics.search_volume < 100).length,
+    low: keywords.filter(k => k.metrics.search_volume >= 100 && k.metrics.search_volume < 1000).length,
+    medium: keywords.filter(k => k.metrics.search_volume >= 1000 && k.metrics.search_volume < 10000).length,
+    high: keywords.filter(k => k.metrics.search_volume >= 10000).length
+  };
+
+  const cpcDistribution = {
+    low: keywords.filter(k => k.metrics.cpc < 1).length,
+    medium: keywords.filter(k => k.metrics.cpc >= 1 && k.metrics.cpc < 3).length,
+    high: keywords.filter(k => k.metrics.cpc >= 3).length
+  };
+
+  // 💰 Calcolo budget totale stimato
+  const totalBudget = keywords.reduce((sum, k) => {
+    const clicks = k.metrics.search_volume * 0.02;
+    return sum + (clicks * k.metrics.cpc);
+  }, 0);
+
+  // 📥 Export CSV
   const handleExportCSV = () => {
-    const csv = exportToCSV(results);
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `yodas-analysis-${Date.now()}.csv`;
-    a.click();
+    const csv = exportToCSV(keywords);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `yoda-seo-analysis-${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+  };
+
+  // 📊 Export JSON
+  const handleExportJSON = () => {
+    const json = JSON.stringify(results, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `yoda-seo-analysis-${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+  };
+
+  // 🎨 Stile raccomandazioni
+  const getRecommendationStyle = (rec: string) => {
+    switch (rec) {
+      case 'YES_PAID':
+        return {
+          bg: 'bg-red-500/10',
+          border: 'border-red-500/30',
+          text: 'text-red-400',
+          label: 'Investi in Paid',
+          icon: (
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+            </svg>
+          )
+        };
+      case 'NO_PAID':
+        return {
+          bg: 'bg-green-500/10',
+          border: 'border-green-500/30',
+          text: 'text-green-400',
+          label: 'Focus su SEO',
+          icon: (
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/>
+            </svg>
+          )
+        };
+      case 'TEST':
+        return {
+          bg: 'bg-yellow-500/10',
+          border: 'border-yellow-500/30',
+          text: 'text-yellow-400',
+          label: 'Test con budget limitato',
+          icon: (
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
+            </svg>
+          )
+        };
+      default:
+        return {
+          bg: 'bg-gray-500/10',
+          border: 'border-gray-500/30',
+          text: 'text-gray-400',
+          label: 'Sconosciuto',
+          icon: null
+        };
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
-      <div className="max-w-7xl mx-auto p-8">
-        {/* Header */}
-        <div className="mb-10">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-gray-100">
+      {/* Header */}
+      <div className="border-b border-gray-700/50 bg-gray-900/50 backdrop-blur-sm sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-5">
-              <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-teal-500/20 to-teal-600/10 border border-teal-500/30 flex items-center justify-center">
-                <svg className="w-8 h-8 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-              </div>
-              <div>
-                <h1 className="text-3xl font-light text-slate-100 tracking-tight">
-                  Analisi Completata
-                </h1>
-                <p className="text-slate-400 mt-1 font-light">
-                  {results.length} keyword analizzate
-                </p>
-              </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white">Analisi SEO Avanzata</h1>
+              <p className="text-sm text-gray-400 mt-1">
+                {summary.totalKeywords} keywords analizzate • Budget stimato: €{totalBudget.toFixed(2)}/mese
+              </p>
             </div>
-            <button
-              onClick={onReset}
-              className="px-5 py-2.5 bg-slate-800/60 hover:bg-slate-700/60 border border-slate-700/50 rounded-lg transition-all text-sm font-light backdrop-blur-sm"
-            >
-              Nuova Analisi
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={handleExportCSV}
+                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Esporta CSV
+              </button>
+              <button
+                onClick={handleExportJSON}
+                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Esporta JSON
+              </button>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="flex gap-4 mt-6">
+            {[
+              { id: 'overview', label: 'Panoramica', icon: '📊' },
+              { id: 'keywords', label: 'Keywords', icon: '🔑' },
+              { id: 'insights', label: 'Insights AI', icon: '🤖' },
+              { id: 'charts', label: 'Grafici', icon: '📈' }
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`px-4 py-2 rounded-t-lg font-medium transition-all ${
+                  activeTab === tab.id
+                    ? 'bg-gray-800 text-white border-b-2 border-blue-500'
+                    : 'text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                <span className="mr-2">{tab.icon}</span>
+                {tab.label}
+              </button>
+            ))}
           </div>
         </div>
+      </div>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mb-10">
-          <MetricCard 
-            title="Keyword Totali" 
-            value={summary.totalKeywords} 
-            icon={<ChartIcon />}
-          />
-          <MetricCard 
-            title="Investimento Consigliato" 
-            value={summary.yes_paid}
-            valueColor="text-red-400"
-            icon={<TrendUpIcon />}
-          />
-          <MetricCard 
-            title="Solo Organico" 
-            value={summary.no_paid}
-            valueColor="text-emerald-400"
-            icon={<SearchIcon />}
-          />
-          <MetricCard 
-            title="Da Testare" 
-            value={summary.test}
-            valueColor="text-amber-400"
-            icon={<FlaskIcon />}
-          />
-        </div>
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        {/* TAB: Panoramica */}
+        {activeTab === 'overview' && (
+          <div className="space-y-6">
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <SummaryCard
+                title="Keywords Totali"
+                value={summary.totalKeywords}
+                icon={
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                  </svg>
+                }
+                color="text-blue-400"
+              />
+              <SummaryCard
+                title="Investi in Paid"
+                value={summary.yes_paid}
+                subtitle={`${((summary.yes_paid / summary.totalKeywords) * 100).toFixed(0)}%`}
+                icon={
+                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"/>
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd"/>
+                  </svg>
+                }
+                color="text-red-400"
+              />
+              <SummaryCard
+                title="Focus su SEO"
+                value={summary.no_paid}
+                subtitle={`${((summary.no_paid / summary.totalKeywords) * 100).toFixed(0)}%`}
+                icon={
+                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd"/>
+                  </svg>
+                }
+                color="text-green-400"
+              />
+              <SummaryCard
+                title="Test con budget"
+                value={summary.test}
+                subtitle={`${((summary.test / summary.totalKeywords) * 100).toFixed(0)}%`}
+                icon={
+                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M7 2a1 1 0 00-.707 1.707L7 4.414v3.758a1 1 0 01-.293.707l-4 4C.817 14.769 2.156 18 4.828 18h10.343c2.673 0 4.012-3.231 2.122-5.121l-4-4A1 1 0 0113 8.172V4.414l.707-.707A1 1 0 0013 2H7zm2 6.172V4h2v4.172a3 3 0 00.879 2.12l1.027 1.028a4 4 0 00-2.171.102l-.47.156a4 4 0 01-2.53 0l-.563-.187a1.993 1.993 0 00-.114-.035l1.063-1.063A3 3 0 009 8.172z" clipRule="evenodd"/>
+                  </svg>
+                }
+                color="text-yellow-400"
+              />
+            </div>
 
-        {/* AI Insights */}
-        <div className="mb-10">
-          <div className="bg-slate-900/40 backdrop-blur-sm rounded-xl border border-slate-800/60 p-8">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-lg bg-teal-500/10 border border-teal-500/20 flex items-center justify-center">
-                <svg className="w-5 h-5 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            {/* Budget Totale */}
+            <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30 rounded-xl p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-1">Budget Mensile Stimato</h3>
+                  <p className="text-3xl font-bold text-blue-400">€{totalBudget.toFixed(2)}</p>
+                  <p className="text-sm text-gray-400 mt-2">
+                    Basato su CTR stimato 2% e CPC medio €{(keywords.reduce((sum, k) => sum + k.metrics.cpc, 0) / keywords.length).toFixed(2)}
+                  </p>
+                </div>
+                <svg className="w-16 h-16 text-blue-400/30" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"/>
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd"/>
                 </svg>
               </div>
-              <h2 className="text-xl font-light text-slate-100">Analisi AI</h2>
             </div>
-            
-            <p className="text-slate-300 mb-8 leading-relaxed font-light text-[15px]">
-              {insights.summary}
-            </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div>
-                <h3 className="text-sm font-medium text-slate-400 mb-4 uppercase tracking-wider">Raccomandazioni</h3>
-                <ul className="space-y-3">
-                  {insights.recommendations.map((rec, i) => (
-                    <li key={i} className="text-[15px] text-slate-300 pl-4 border-l border-slate-700/50 font-light">
-                      {rec}
-                    </li>
-                  ))}
-                </ul>
+            {/* Top 5 Keywords per Recommendation */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* YES_PAID */}
+              <KeywordListCard
+                title="Top 5 - Investi in Paid"
+                keywords={keywords.filter(k => k.recommendation === 'YES_PAID').slice(0, 5)}
+                emptyMessage="Nessuna keyword richiede investimento paid"
+                color="red"
+              />
+              {/* NO_PAID */}
+              <KeywordListCard
+                title="Top 5 - Focus SEO"
+                keywords={keywords.filter(k => k.recommendation === 'NO_PAID').slice(0, 5)}
+                emptyMessage="Nessuna keyword ideale per SEO"
+                color="green"
+              />
+              {/* TEST */}
+              <KeywordListCard
+                title="Top 5 - Test Budget"
+                keywords={keywords.filter(k => k.recommendation === 'TEST').slice(0, 5)}
+                emptyMessage="Nessuna keyword da testare"
+                color="yellow"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* TAB: Keywords */}
+        {activeTab === 'keywords' && (
+          <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-900/50 border-b border-gray-700">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Keyword</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Volume</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">CPC</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Competition</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Advertisers</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Raccomandazione</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Budget/mese</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-700/50">
+                  {keywords.map((keyword, idx) => {
+                    const style = getRecommendationStyle(keyword.recommendation || '');
+                    const monthlyBudget = keyword.metrics.search_volume * 0.02 * keyword.metrics.cpc;
+                    return (
+                      <tr key={idx} className="hover:bg-gray-700/20 transition-colors">
+                        <td className="px-6 py-4">
+                          <span className="font-medium text-white">{keyword.keyword}</span>
+                        </td>
+                        <td className="px-6 py-4 text-gray-300">
+                          {keyword.metrics.search_volume.toLocaleString()}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="text-blue-400 font-medium">€{keyword.metrics.cpc.toFixed(2)}</span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            <div className="w-24 h-2 bg-gray-700 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full ${
+                                  keyword.metrics.competition < 0.3
+                                    ? 'bg-green-500'
+                                    : keyword.metrics.competition < 0.7
+                                    ? 'bg-yellow-500'
+                                    : 'bg-red-500'
+                                }`}
+                                style={{ width: `${keyword.metrics.competition * 100}%` }}
+                              />
+                            </div>
+                            <span className="text-gray-400 text-sm">
+                              {(keyword.metrics.competition * 100).toFixed(0)}%
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-gray-300">
+                          {keyword.advertisers.length}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-medium ${style.bg} ${style.border} ${style.text} border`}>
+                            {style.icon}
+                            {style.label}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="text-purple-400 font-medium">€{monthlyBudget.toFixed(2)}</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: Insights AI */}
+        {activeTab === 'insights' && (
+          <div className="space-y-6">
+            {/* Strategia Generale */}
+            <div className="bg-gradient-to-br from-purple-500/10 to-blue-500/10 border border-purple-500/30 rounded-xl p-6">
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-purple-500/20 rounded-lg">
+                  <svg className="w-8 h-8 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z"/>
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-white mb-3">Strategia Generale</h3>
+                  <p className="text-gray-300 leading-relaxed">{insights.strategy}</p>
+                </div>
               </div>
+            </div>
 
-              <div>
-                <h3 className="text-sm font-medium text-slate-400 mb-4 uppercase tracking-wider">Budget Stimato</h3>
-                <p className="text-3xl font-light text-teal-400 mb-6">
-                  {insights.budget_estimate}
-                </p>
+            {/* Quick Wins */}
+            <div className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-xl p-6">
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-green-500/20 rounded-lg">
+                  <svg className="w-8 h-8 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd"/>
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-white mb-3">Quick Wins</h3>
+                  <ul className="space-y-2">
+                    {insights.quick_wins.map((win, idx) => (
+                      <li key={idx} className="flex items-start gap-2 text-gray-300">
+                        <svg className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+                        </svg>
+                        <span>{win}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
 
-                <h3 className="text-sm font-medium text-slate-400 mb-4 uppercase tracking-wider">Keyword Prioritarie</h3>
-                <div className="flex flex-wrap gap-2">
-                  {insights.priority_keywords.map((kw, i) => (
-                    <span
-                      key={i}
-                      className="px-3 py-1.5 bg-slate-800/40 border border-slate-700/40 text-slate-300 rounded-md text-sm font-light"
-                    >
-                      {kw}
-                    </span>
-                  ))}
+            {/* Priority Keywords */}
+            <div className="bg-gradient-to-br from-red-500/10 to-orange-500/10 border border-red-500/30 rounded-xl p-6">
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-red-500/20 rounded-lg">
+                  <svg className="w-8 h-8 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M3 6a3 3 0 013-3h10a1 1 0 01.8 1.6L14.25 8l2.55 3.4A1 1 0 0116 13H6a1 1 0 00-1 1v3a1 1 0 11-2 0V6z" clipRule="evenodd"/>
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-white mb-3">Keywords Prioritarie</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {insights.priority_keywords.map((kw, idx) => (
+                      <div key={idx} className="bg-gray-800/50 border border-gray-700 rounded-lg p-3">
+                        <span className="text-white font-medium">{kw}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Budget Estimate */}
+            <div className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/30 rounded-xl p-6">
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-blue-500/20 rounded-lg">
+                  <svg className="w-8 h-8 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"/>
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd"/>
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-white mb-3">Stima Budget</h3>
+                  <p className="text-gray-300 leading-relaxed">{insights.budget_estimate}</p>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Charts */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-10">
-          <DistributionChart summary={summary} />
-          <TopCPCChart results={results.slice(0, 10)} />
-        </div>
-
-        {/* Export Button */}
-        <div className="mb-6 flex justify-end">
-          <button
-            onClick={handleExportCSV}
-            className="px-5 py-2.5 bg-teal-600/90 hover:bg-teal-600 rounded-lg transition-all text-sm font-light flex items-center gap-2"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            Esporta CSV
-          </button>
-        </div>
-
-        {/* Results Table */}
-        <div className="bg-slate-900/40 backdrop-blur-sm rounded-xl border border-slate-800/60 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-slate-900/60 border-b border-slate-800/60">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Keyword</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Inserzionisti</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">CPC</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Competizione</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Volume</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Budget/mese</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Raccomandazione</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase tracking-wider"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {results.map((result, idx) => {
-                  const style = getRecommendationStyle(result.recommendation);
-                  const budget = calculateKeywordBudget(result);
-                  const isExpanded = selectedKeyword === result.keyword;
-
-                  return (
-                    <>
-                      <tr
-                        key={idx}
-                        className="border-b border-slate-800/40 hover:bg-slate-800/20 transition-colors cursor-pointer"
-                        onClick={() => setSelectedKeyword(isExpanded ? null : result.keyword)}
-                      >
-                        <td className="px-6 py-4 font-light text-slate-200">
-                          {result.keyword}
-                        </td>
-                        <td className="px-6 py-4 text-slate-300 font-light">
-                          {result.advertisers.length}
-                        </td>
-                        <td className="px-6 py-4 text-slate-300 font-mono text-sm">
-                          €{result.metrics.cpc.toFixed(2)}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-24 h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-teal-500/70"
-                                style={{ width: `${result.metrics.competition * 100}%` }}
-                              />
-                            </div>
-                            <span className="text-xs text-slate-500 font-light">
-                              {(result.metrics.competition * 100).toFixed(0)}%
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-slate-300 font-light">
-                          {result.metrics.search_volume.toLocaleString()}
-                        </td>
-                        <td className="px-6 py-4 text-slate-300 font-light">
-                          €{budget.toLocaleString()}
-                        </td>
-                        <td className="px-6 py-4">
-                          <RecommendationBadge recommendation={result.recommendation} />
-                        </td>
-                        <td className="px-6 py-4 text-slate-500">
-                          <svg className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </td>
-                      </tr>
-
-                      {isExpanded && result.advertisers.length > 0 && (
-                        <tr className="bg-slate-900/20">
-                          <td colSpan={8} className="px-6 py-6">
-                            <div className="bg-slate-900/40 rounded-lg p-5 border border-slate-800/40">
-                              <h4 className="text-sm font-medium text-slate-400 mb-4 uppercase tracking-wider">
-                                Inserzionisti ({result.advertisers.length})
-                              </h4>
-                              <div className="space-y-3">
-                                {result.advertisers.slice(0, 10).map((adv, i) => (
-                                  <div
-                                    key={i}
-                                    className="flex items-start gap-4 p-4 bg-slate-800/20 rounded-lg border border-slate-800/30"
-                                  >
-                                    <span className="text-teal-400 font-mono text-sm">#{adv.position}</span>
-                                    <div className="flex-1">
-                                      <div className="font-light text-slate-200 text-sm">
-                                        {adv.domain}
-                                      </div>
-                                      <div className="text-sm text-slate-400 mt-1 font-light">
-                                        {adv.title}
-                                      </div>
-                                      {adv.description && (
-                                        <div className="text-xs text-slate-500 mt-2 font-light">
-                                          {adv.description}
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <footer className="text-center mt-12 text-slate-600 text-sm font-light">
-          Fatto con passione per la SEO da Maria Paloschi
-        </footer>
-      </div>
-    </div>
-  );
-}
-
-// Icon Components
-function ChartIcon() {
-  return (
-    <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-    </svg>
-  );
-}
-
-function TrendUpIcon() {
-  return (
-    <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-    </svg>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-    </svg>
-  );
-}
-
-function FlaskIcon() {
-  return (
-    <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-    </svg>
-  );
-}
-
-// Helper Components
-function MetricCard({ title, value, valueColor = "text-slate-100", icon }: any) {
-  return (
-    <div className="bg-slate-900/40 backdrop-blur-sm rounded-xl border border-slate-800/60 p-6">
-      <div className="flex items-center justify-between mb-3">
-        {icon}
-        <span className={`text-3xl font-light ${valueColor}`}>{value}</span>
-      </div>
-      <div className="text-sm text-slate-400 font-light">{title}</div>
-    </div>
-  );
-}
-
-function RecommendationBadge({ recommendation }: { recommendation: string }) {
-  const styles: Record<string, { bg: string; border: string; text: string; label: string }> = {
-    'YES_PAID': {
-      bg: 'bg-red-500/10',
-      border: 'border-red-500/30',
-      text: 'text-red-400',
-      label: 'Investimento Consigliato'
-    },
-    'NO_PAID': {
-      bg: 'bg-emerald-500/10',
-      border: 'border-emerald-500/30',
-      text: 'text-emerald-400',
-      label: 'Solo Organico'
-    },
-    'TEST': {
-      bg: 'bg-amber-500/10',
-      border: 'border-amber-500/30',
-      text: 'text-amber-400',
-      label: 'Da Testare'
-    }
-  };
-
-  const style = styles[recommendation] || styles['TEST'];
-
-  return (
-    <span className={`inline-flex items-center px-3 py-1.5 rounded-md border text-xs font-light ${style.bg} ${style.border} ${style.text}`}>
-      {style.label}
-    </span>
-  );
-}
-
-function DistributionChart({ summary }: { summary: any }) {
-  const total = summary.yes_paid + summary.no_paid + summary.test;
-  const yesPercent = (summary.yes_paid / total) * 100;
-  const noPercent = (summary.no_paid / total) * 100;
-
-  return (
-    <div className="bg-slate-900/40 backdrop-blur-sm rounded-xl border border-slate-800/60 p-6">
-      <h3 className="text-sm font-medium text-slate-400 mb-6 uppercase tracking-wider">Distribuzione Raccomandazioni</h3>
-      <div className="flex items-center justify-center gap-10">
-        <div className="relative w-40 h-40">
-          <svg viewBox="0 0 100 100" className="transform -rotate-90">
-            <circle cx="50" cy="50" r="40" fill="none" stroke="#1e293b" strokeWidth="16" />
-            <circle
-              cx="50"
-              cy="50"
-              r="40"
-              fill="none"
-              stroke="#f87171"
-              strokeWidth="16"
-              strokeDasharray={`${yesPercent * 2.513} ${251.3 - yesPercent * 2.513}`}
-            />
-            <circle
-              cx="50"
-              cy="50"
-              r="40"
-              fill="none"
-              stroke="#34d399"
-              strokeWidth="16"
-              strokeDasharray={`${noPercent * 2.513} ${251.3 - noPercent * 2.513}`}
-              strokeDashoffset={`${-yesPercent * 2.513}`}
-            />
-          </svg>
-        </div>
-        <div className="space-y-3">
-          <div className="flex items-center gap-3">
-            <div className="w-3 h-3 bg-red-400 rounded-sm" />
-            <span className="text-sm font-light text-slate-300">Investimento: {summary.yes_paid} ({yesPercent.toFixed(0)}%)</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-3 h-3 bg-emerald-400 rounded-sm" />
-            <span className="text-sm font-light text-slate-300">Organico: {summary.no_paid} ({noPercent.toFixed(0)}%)</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-3 h-3 bg-amber-400 rounded-sm" />
-            <span className="text-sm font-light text-slate-300">Test: {summary.test}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TopCPCChart({ results }: { results: any[] }) {
-  const maxCPC = Math.max(...results.map(r => r.metrics.cpc));
-
-  return (
-    <div className="bg-slate-900/40 backdrop-blur-sm rounded-xl border border-slate-800/60 p-6">
-      <h3 className="text-sm font-medium text-slate-400 mb-6 uppercase tracking-wider">Top 10 CPC</h3>
-      <div className="space-y-4">
-        {results.map((result, i) => (
-          <div key={i} className="flex items-center gap-3">
-            <span className="text-xs text-slate-600 w-6 font-mono">#{i + 1}</span>
-            <div className="flex-1">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-slate-300 truncate font-light">{result.keyword}</span>
-                <span className="text-sm font-mono text-teal-400 ml-3">
-                  €{result.metrics.cpc.toFixed(2)}
-                </span>
+        {/* TAB: Grafici */}
+        {activeTab === 'charts' && (
+          <div className="space-y-6">
+            {/* Recommendation Pie Chart */}
+            <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6">
+              <h3 className="text-xl font-bold text-white mb-6">Distribuzione Raccomandazioni</h3>
+              <div className="flex items-center justify-center gap-8">
+                <div className="relative w-64 h-64">
+                  <svg viewBox="0 0 200 200" className="transform -rotate-90">
+                    {/* YES_PAID */}
+                    <circle
+                      cx="100"
+                      cy="100"
+                      r="80"
+                      fill="none"
+                      stroke="#ef4444"
+                      strokeWidth="40"
+                      strokeDasharray={`${(summary.yes_paid / summary.totalKeywords) * 502.65} 502.65`}
+                      strokeDashoffset="0"
+                    />
+                    {/* NO_PAID */}
+                    <circle
+                      cx="100"
+                      cy="100"
+                      r="80"
+                      fill="none"
+                      stroke="#22c55e"
+                      strokeWidth="40"
+                      strokeDasharray={`${(summary.no_paid / summary.totalKeywords) * 502.65} 502.65`}
+                      strokeDashoffset={`-${(summary.yes_paid / summary.totalKeywords) * 502.65}`}
+                    />
+                    {/* TEST */}
+                    <circle
+                      cx="100"
+                      cy="100"
+                      r="80"
+                      fill="none"
+                      stroke="#eab308"
+                      strokeWidth="40"
+                      strokeDasharray={`${(summary.test / summary.totalKeywords) * 502.65} 502.65`}
+                      strokeDashoffset={`-${((summary.yes_paid + summary.no_paid) / summary.totalKeywords) * 502.65}`}
+                    />
+                  </svg>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-4 h-4 bg-red-500 rounded"></div>
+                    <span className="text-gray-300">Investi in Paid: {summary.yes_paid} ({((summary.yes_paid / summary.totalKeywords) * 100).toFixed(0)}%)</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-4 h-4 bg-green-500 rounded"></div>
+                    <span className="text-gray-300">Focus SEO: {summary.no_paid} ({((summary.no_paid / summary.totalKeywords) * 100).toFixed(0)}%)</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-4 h-4 bg-yellow-500 rounded"></div>
+                    <span className="text-gray-300">Test Budget: {summary.test} ({((summary.test / summary.totalKeywords) * 100).toFixed(0)}%)</span>
+                  </div>
+                </div>
               </div>
-              <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-teal-500/70"
-                  style={{ width: `${(result.metrics.cpc / maxCPC) * 100}%` }}
-                />
+            </div>
+
+            {/* Bar Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Competition Distribution */}
+              <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6">
+                <h3 className="text-lg font-semibold text-white mb-4">Distribuzione Competition</h3>
+                <div className="space-y-3">
+                  <BarChart label="Bassa (<30%)" value={competitionDistribution.low} max={summary.totalKeywords} color="bg-green-500" />
+                  <BarChart label="Media (30-70%)" value={competitionDistribution.medium} max={summary.totalKeywords} color="bg-yellow-500" />
+                  <BarChart label="Alta (>70%)" value={competitionDistribution.high} max={summary.totalKeywords} color="bg-red-500" />
+                </div>
+              </div>
+
+              {/* Volume Distribution */}
+              <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6">
+                <h3 className="text-lg font-semibold text-white mb-4">Distribuzione Volume</h3>
+                <div className="space-y-3">
+                  <BarChart label="<100" value={volumeDistribution.veryLow} max={summary.totalKeywords} color="bg-gray-500" />
+                  <BarChart label="100-1K" value={volumeDistribution.low} max={summary.totalKeywords} color="bg-blue-500" />
+                  <BarChart label="1K-10K" value={volumeDistribution.medium} max={summary.totalKeywords} color="bg-purple-500" />
+                  <BarChart label=">10K" value={volumeDistribution.high} max={summary.totalKeywords} color="bg-pink-500" />
+                </div>
+              </div>
+
+              {/* CPC Distribution */}
+              <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6">
+                <h3 className="text-lg font-semibold text-white mb-4">Distribuzione CPC</h3>
+                <div className="space-y-3">
+                  <BarChart label="<€1" value={cpcDistribution.low} max={summary.totalKeywords} color="bg-green-500" />
+                  <BarChart label="€1-€3" value={cpcDistribution.medium} max={summary.totalKeywords} color="bg-yellow-500" />
+                  <BarChart label=">€3" value={cpcDistribution.high} max={summary.totalKeywords} color="bg-red-500" />
+                </div>
               </div>
             </div>
           </div>
-        ))}
+        )}
+      </div>
+    </div>
+  );
+}
+
+// 📦 Componenti Helper
+function SummaryCard({
+  title,
+  value,
+  subtitle,
+  icon,
+  color
+}: {
+  title: string;
+  value: number;
+  subtitle?: string;
+  icon: React.ReactNode;
+  color: string;
+}) {
+  return (
+    <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 hover:border-gray-600 transition-colors">
+      <div className="flex items-start justify-between mb-4">
+        <div className={`p-2 rounded-lg bg-gray-700/50 ${color}`}>{icon}</div>
+      </div>
+      <h3 className="text-sm font-medium text-gray-400 mb-2">{title}</h3>
+      <div className="flex items-baseline gap-2">
+        <p className="text-3xl font-bold text-white">{value}</p>
+        {subtitle && <span className="text-sm text-gray-400">{subtitle}</span>}
+      </div>
+    </div>
+  );
+}
+
+function KeywordListCard({
+  title,
+  keywords,
+  emptyMessage,
+  color
+}: {
+  title: string;
+  keywords: any[];
+  emptyMessage: string;
+  color: 'red' | 'green' | 'yellow';
+}) {
+  const colorClasses = {
+    red: 'border-red-500/30 bg-red-500/5',
+    green: 'border-green-500/30 bg-green-500/5',
+    yellow: 'border-yellow-500/30 bg-yellow-500/5'
+  };
+
+  return (
+    <div className={`bg-gray-800/50 border ${colorClasses[color]} rounded-xl p-6`}>
+      <h3 className="text-lg font-semibold text-white mb-4">{title}</h3>
+      {keywords.length === 0 ? (
+        <p className="text-gray-400 text-sm">{emptyMessage}</p>
+      ) : (
+        <ul className="space-y-3">
+          {keywords.map((kw, idx) => (
+            <li key={idx} className="border-b border-gray-700/50 pb-3 last:border-0 last:pb-0">
+              <div className="flex justify-between items-start mb-1">
+                <span className="text-white font-medium">{kw.keyword}</span>
+                <span className="text-blue-400 text-sm">€{kw.metrics.cpc.toFixed(2)}</span>
+              </div>
+              <div className="flex gap-4 text-xs text-gray-400">
+                <span>Vol: {kw.metrics.search_volume.toLocaleString()}</span>
+                <span>Comp: {(kw.metrics.competition * 100).toFixed(0)}%</span>
+                <span>Ads: {kw.advertisers.length}</span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function BarChart({
+  label,
+  value,
+  max,
+  color
+}: {
+  label: string;
+  value: number;
+  max: number;
+  color: string;
+}) {
+  const percentage = max > 0 ? (value / max) * 100 : 0;
+  return (
+    <div>
+      <div className="flex justify-between text-sm text-gray-400 mb-1">
+        <span>{label}</span>
+        <span>{value}</span>
+      </div>
+      <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
+        <div
+          className={`h-full ${color} transition-all duration-500`}
+          style={{ width: `${percentage}%` }}
+        />
       </div>
     </div>
   );
