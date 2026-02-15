@@ -4,8 +4,6 @@
 
 'use client';
 
-import { Sparkles } from 'lucide-react';
-
 interface WelcomeScreenProps {
   onStart: () => void;
 }
@@ -107,10 +105,10 @@ export default function WelcomeScreen({ onStart }: WelcomeScreenProps) {
           onClick={onStart}
           className="group relative px-10 py-5 bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-500 hover:to-teal-400 text-white font-bold text-lg rounded-xl shadow-[0_0_30px_rgba(45,212,191,0.5)] hover:shadow-[0_0_50px_rgba(45,212,191,0.8)] transition-all duration-300 transform hover:scale-105"
         >
-          <span className="flex items-center gap-3">
-            <Sparkles className="w-6 h-6" />
+          <span className="flex items-center gap-3 justify-center">
+            <span className="text-2xl">✨</span>
             Inizia Analisi Paid vs Organic
-            <Sparkles className="w-6 h-6" />
+            <span className="text-2xl">✨</span>
           </span>
         </button>
 
