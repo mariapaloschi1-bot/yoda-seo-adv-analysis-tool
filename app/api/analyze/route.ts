@@ -1,5 +1,6 @@
 /**
  * API Route - Complete Analysis with Organic + Paid + Metrics
+ * FIX: Corretto parsing DataForSEO - result è un ARRAY!
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -237,7 +238,7 @@ async function getOrganicPositionsLive(keyword: string, login: string, password:
   };
 }
 
-// LIVE Endpoint - Keyword Metrics (CORRETTO)
+// LIVE Endpoint - Keyword Metrics (CORRETTO - FIX PARSING!)
 async function getKeywordMetricsLive(keyword: string, login: string, password: string) {
   const authHeader = 'Basic ' + Buffer.from(`${login}:${password}`).toString('base64');
 
@@ -268,6 +269,7 @@ async function getKeywordMetricsLive(keyword: string, login: string, password: s
   console.log('[DataForSEO] ===== RISPOSTA METRICS =====');
   console.log('[DataForSEO] Status Code:', data.tasks?.[0]?.status_code);
   console.log('[DataForSEO] Status Message:', data.tasks?.[0]?.status_message);
+  console.log('[DataForSEO] Result Count:', data.tasks?.[0]?.result_count);
   
   if (data.tasks?.[0]?.status_code !== 20000) {
     console.error('[DataForSEO] ❌ Metrics task failed:', data.tasks?.[0]?.status_message);
@@ -275,15 +277,22 @@ async function getKeywordMetricsLive(keyword: string, login: string, password: s
     return { search_volume: 0, cpc: 0, competition: 0 };
   }
 
-  const result = data.tasks?.[0]?.result?.[0];
+  // ⚠️ FIX: result è un ARRAY, non un oggetto singolo!
+  const resultArray = data.tasks?.[0]?.result || [];
   
-  // 🔍 DEBUG: Log result raw
-  console.log('[DataForSEO] Result object:', JSON.stringify(result, null, 2));
-
-  if (!result) {
-    console.warn('[DataForSEO] ⚠️ No metrics found, using defaults');
+  // 🔍 DEBUG: Log result array
+  console.log('[DataForSEO] Result array length:', resultArray.length);
+  
+  if (resultArray.length === 0) {
+    console.warn('[DataForSEO] ⚠️ No metrics in result array, using defaults');
     return { search_volume: 0, cpc: 0, competition: 0 };
   }
+
+  // Prendi il primo risultato dell'array (che corrisponde alla keyword richiesta)
+  const result = resultArray[0];
+  
+  // 🔍 DEBUG: Log result object
+  console.log('[DataForSEO] First result object:', JSON.stringify(result, null, 2));
 
   const metrics = {
     search_volume: result.search_volume || 0,
