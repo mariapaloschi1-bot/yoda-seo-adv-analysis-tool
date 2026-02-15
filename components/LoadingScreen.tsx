@@ -11,9 +11,20 @@ interface LoadingScreenProps {
   currentKeyword: string;
   progress: number;
   total: number;
+  costPerKeyword?: number;
+  optionsActive?: {
+    organic: boolean;
+    forecast: boolean;
+  };
 }
 
-export default function LoadingScreen({ currentKeyword, progress, total }: LoadingScreenProps) {
+export default function LoadingScreen({ 
+  currentKeyword, 
+  progress, 
+  total,
+  costPerKeyword = 0.525,
+  optionsActive = { organic: true, forecast: false }
+}: LoadingScreenProps) {
   const [dots, setDots] = useState('');
   const [messageIndex, setMessageIndex] = useState(0);
 
@@ -44,11 +55,13 @@ export default function LoadingScreen({ currentKeyword, progress, total }: Loadi
 
   const percentage = total > 0 ? Math.round((progress / total) * 100) : 0;
   const estimatedTime = Math.ceil((total - progress) * 1.5);
+  const totalCost = (costPerKeyword * total).toFixed(2);
+  const currentCost = (costPerKeyword * progress).toFixed(2);
 
   return (
     <div className="min-h-screen bg-stardust flex items-center justify-center p-6">
       <div className="max-w-2xl w-full">
-        {/* Baby Yoda Loading - Saltellante come Welcome */}
+        {/* Baby Yoda Loading */}
         <div className="flex justify-center mb-8 animate-bounce" style={{ animationDuration: '1.5s' }}>
           <div className="relative w-32 h-32 rounded-full border-4 border-teal-500/50 overflow-hidden shadow-[0_0_40px_rgba(45,212,191,0.4)] bg-slate-800">
             <Image
@@ -70,6 +83,23 @@ export default function LoadingScreen({ currentKeyword, progress, total }: Loadi
             "{yodaMessages[messageIndex]}"
           </p>
         </div>
+
+        {/* Cost Badge */}
+        {costPerKeyword && (
+          <div className="mb-6 bg-gradient-to-r from-amber-900/30 to-orange-900/30 border border-amber-600/40 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-semibold text-amber-400">💰 Costo Analisi</span>
+              <span className="text-2xl font-bold text-amber-300">
+                €{currentCost} / €{totalCost}
+              </span>
+            </div>
+            <div className="flex items-center gap-4 text-xs text-amber-200/80">
+              <span>€{costPerKeyword.toFixed(3)} per keyword</span>
+              {optionsActive.organic && <span>✅ Organic</span>}
+              {optionsActive.forecast && <span>✅ Forecast</span>}
+            </div>
+          </div>
+        )}
 
         {/* Progress Card */}
         <div className="bg-slate-800/80 backdrop-blur-sm rounded-2xl border border-teal-500/30 p-8 glow-teal">
