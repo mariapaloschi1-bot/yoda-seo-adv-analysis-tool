@@ -21,7 +21,6 @@ export default function Home() {
     includeOrganicPositions: true,
   });
 
-  // Load API keys from localStorage
   useEffect(() => {
     const storedDFS = localStorage.getItem('yoda_dataforseo_credentials');
     const storedGemini = localStorage.getItem('yoda_gemini_api_key');
@@ -60,7 +59,6 @@ export default function Home() {
       return;
     }
 
-    // Save to localStorage
     localStorage.setItem('yoda_dataforseo_credentials', JSON.stringify(apiKeys.dataForSeo));
     localStorage.setItem('yoda_gemini_api_key', apiKeys.gemini);
 
@@ -77,7 +75,7 @@ export default function Home() {
           dataForSeoLogin: apiKeys.dataForSeo.login,
           dataForSeoPassword: apiKeys.dataForSeo.password,
           geminiKey: apiKeys.gemini,
-          options: analysisOptions, // NUOVO: passa le opzioni all'API
+          options: analysisOptions,
         })
       });
 
@@ -109,7 +107,7 @@ export default function Home() {
         results: transformedResults,
         insights: apiResult.insights,
         summary: {
-          total: transformedResults.length,
+          totalKeywords: transformedResults.length,
           yes_paid: yesCount,
           no_paid: noCount,
           test: testCount,
@@ -134,27 +132,22 @@ export default function Home() {
     const competition = result.metrics?.competition || 0;
     const volume = result.metrics?.search_volume || 0;
 
-    // Caso 1: Nessun paid MA alta competition → OPPORTUNITÀ!
     if (advertiserCount === 0 && competition > 0.5) {
       return 'OPPORTUNITY';
     }
     
-    // Caso 2: Nessun paid E bassa competition → focus organico
     if (advertiserCount === 0 && competition < 0.3) {
       return 'NO_PAID';
     }
     
-    // Caso 3: Molti bidders + CPC alto → investire in paid
     if (advertiserCount > 5 && cpc > 1.0 && competition > 0.6) {
       return 'YES_PAID';
     }
     
-    // Caso 4: Volume alto + competizione media → testare
     if (volume > 1000 && competition > 0.4 && advertiserCount > 2) {
       return 'TEST';
     }
     
-    // Caso 5: Posizioni organiche top-3 MA nessun paid → difesa con paid
     if (organicCount > 0 && result.organic_positions[0]?.position <= 3 && advertiserCount > 3) {
       return 'YES_PAID';
     }
@@ -164,7 +157,6 @@ export default function Home() {
 
   const keywordCount = keywords.split('\n').filter(k => k.trim()).length;
 
-  // Calcolo costo dinamico
   const baseCost = 0.525;
   const organicCost = analysisOptions.includeOrganicPositions ? 0.30 : 0;
   const forecastCost = analysisOptions.includeAdTrafficForecast ? 0.075 : 0;
@@ -176,7 +168,6 @@ export default function Home() {
   }
 
   if (state === 'loading') {
-    // ✅ FIXED: Passa costo e opzioni a LoadingScreen
     const costPerKeyword = 0.45 + 0.075 + 
       (analysisOptions.includeOrganicPositions ? 0.30 : 0) + 
       (analysisOptions.includeAdTrafficForecast ? 0.075 : 0);
@@ -221,14 +212,13 @@ export default function Home() {
     );
   }
 
-  // INPUT VIEW
+  // INPUT VIEW - (resto del codice uguale)
   return (
     <div className="min-h-screen bg-stardust">
       <div className="max-w-5xl mx-auto p-6 lg:p-12 font-sans">
         <div className="bg-slate-800 rounded-3xl shadow-2xl border border-slate-700 overflow-hidden relative">
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-teal-400 to-transparent opacity-50"></div>
 
-          {/* Header Section */}
           <div className="bg-slate-900/50 border-b border-slate-700 p-8">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
               <div className="hidden sm:flex w-24 h-24 shrink-0 bg-slate-800 rounded-full border-2 border-teal-500/50 items-center justify-center shadow-[0_0_20px_rgba(45,212,191,0.3)] overflow-hidden relative group">
@@ -253,7 +243,6 @@ export default function Home() {
 
           <div className="p-8 space-y-10">
             
-            {/* DataForSEO Credentials */}
             <div className="bg-teal-900/20 border-2 border-teal-600/50 rounded-xl p-6 relative overflow-hidden">
               <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-teal-500/10 blur-2xl"></div>
               
@@ -327,7 +316,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Gemini API Key */}
             <div className="bg-amber-900/20 border-2 border-amber-600/50 rounded-xl p-6 relative overflow-hidden">
               <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-amber-500/10 blur-2xl"></div>
               
@@ -390,7 +378,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Keywords Input */}
             <div>
               <label className="block text-xs font-bold text-teal-500 uppercase tracking-widest mb-2">
                 Le Tue Keywords
@@ -410,7 +397,6 @@ export default function Home() {
               </p>
             </div>
 
-            {/* Costo stimato dinamico */}
             {keywordCount > 0 && (
               <div className="bg-amber-900/20 border border-amber-600/40 rounded-lg p-4">
                 <div className="flex items-center justify-between">
@@ -425,7 +411,6 @@ export default function Home() {
               </div>
             )}
 
-            {/* Actions */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 pt-4">
               <button
                 onClick={handleSubmit}
