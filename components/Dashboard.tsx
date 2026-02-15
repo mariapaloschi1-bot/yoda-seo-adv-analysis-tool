@@ -62,7 +62,7 @@ export default function Dashboard({ analysisResult, onReset }: DashboardProps) {
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <SummaryCard title="Keywords Totali" value={summary.total} icon="📊" color="text-blue-400" />
+          <SummaryCard title="Keywords Totali" value={summary.totalKeywords} icon="📊" color="text-blue-400" />
           <SummaryCard title="SI - Investire" value={summary.yes_paid} icon="🔴" color="text-red-400" />
           <SummaryCard title="NO - SEO Focus" value={summary.no_paid} icon="🟢" color="text-green-400" />
           <SummaryCard title="TEST - Sperimentare" value={summary.test} icon="🟡" color="text-yellow-400" />
