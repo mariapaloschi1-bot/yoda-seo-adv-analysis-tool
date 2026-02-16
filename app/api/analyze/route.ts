@@ -93,8 +93,13 @@ export async function POST(req: NextRequest) {
             dataforseo_password
           );
           
-          keyword.forecast = forecast;
-          console.log(`[API] Forecast for "${keyword.keyword}": ${forecast.clicks.toFixed(0)} clicks, ${forecast.impressions.toFixed(0)} impressions`);
+          // ✅ NULL CHECK: forecast can be null
+          if (forecast) {
+            keyword.forecast = forecast;
+            console.log(`[API] Forecast for "${keyword.keyword}": ${forecast.clicks.toFixed(0)} clicks, ${forecast.impressions.toFixed(0)} impressions`);
+          } else {
+            console.warn(`[API] No forecast data available for "${keyword.keyword}"`);
+          }
           
           // Rate limiting: 1s tra richieste
           if (i < results.length - 1) {
