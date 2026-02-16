@@ -30,7 +30,7 @@ export interface KeywordResult {
   advertisers: Advertiser[];
   metrics: KeywordMetrics;
   organic_positions?: number[];
-  ad_traffic_forecast?: {
+  forecast?: {
     impressions: number;
     clicks: number;
     ctr: number;
@@ -41,7 +41,7 @@ export interface KeywordResult {
 
 const DATAFORSEO_API_BASE = 'https://api.dataforseo.com/v3';
 
-// ✅ FIXED: Helper function with proper error handling
+// ✅ BULLETPROOF: Helper function with proper error handling
 async function makeDataForSeoRequest(
   endpoint: string,
   credentials: DataForSeoCredentials,
@@ -52,37 +52,93 @@ async function makeDataForSeoRequest(
   console.log(`📡 Calling DataForSEO: ${endpoint}`);
   console.log(`🔑 Auth (login): ${credentials.login}`);
   
-  const response = await fetch(`${DATAFORSEO_API_BASE}${endpoint}`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Basic ${auth}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(data),
-  });
+  try {
+    const response = await fetch(`${DATAFORSEO_API_BASE}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${auth}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
 
-  // ✅ READ THE RESPONSE BODY FIRST
-  const responseData = await response.json();
-
-  if (!response.ok) {
-    // ✅ SHOW THE REAL ERROR FROM DATAFORSEO
-    const errorMessage = responseData?.status_message || response.statusText;
-    const errorCode = responseData?.status_code || response.status;
+    // ✅ TRY TO PARSE JSON (might fail if HTML error page)
+    let responseData: any;
+    const contentType = response.headers.get('content-type');
     
-    console.error(`❌ DataForSEO Error ${errorCode}: ${errorMessage}`);
-    console.error(`Full response:`, JSON.stringify(responseData, null, 2));
+    if (contentType && contentType.includes('application/json')) {
+      responseData = await response.json();
+    } else {
+      // HTML error page or non-JSON response
+      const textBody = await response.text();
+      console.error(`❌ Non-JSON response (${response.status}):`, textBody.substring(0, 500));
+      
+      throw new Error(
+        `DataForSEO returned non-JSON response (HTTP ${response.status}). ` +
+        `This usually means authentication failed. ` +
+        `Check your credentials at https://app.dataforseo.com/api-access`
+      );
+    }
+
+    // ✅ CHECK HTTP STATUS
+    if (!response.ok) {
+      const errorMessage = responseData?.status_message || response.statusText;
+      const errorCode = responseData?.status_code || response.status;
+      
+      console.error(`❌ DataForSEO HTTP Error ${response.status}:`, errorMessage);
+      console.error(`Full response:`, JSON.stringify(responseData, null, 2));
+      
+      // Special message for 401
+      if (response.status === 401) {
+        throw new Error(
+          `Authentication failed (HTTP 401). ` +
+          `Please verify your DataForSEO credentials at https://app.dataforseo.com/api-access. ` +
+          `Make sure you're using the API password (not your account password).`
+        );
+      }
+      
+      throw new Error(`API Status: ${errorCode} - ${errorMessage}`);
+    }
+
+    // ✅ CHECK DATAFORSEO STATUS CODE (success = 20000)
+    if (responseData.status_code && responseData.status_code !== 20000) {
+      const errorMsg = responseData.status_message || 'Unknown error';
+      console.error(`❌ DataForSEO API Error: ${responseData.status_code} - ${errorMsg}`);
+      
+      // Special handling for common errors
+      if (responseData.status_code === 40100) {
+        throw new Error(
+          `Authorization failed (40100): ${errorMsg}. ` +
+          `Your API credentials are invalid or your account doesn't have access to this endpoint. ` +
+          `Check: https://app.dataforseo.com/api-access`
+        );
+      }
+      
+      if (responseData.status_code === 40101) {
+        throw new Error(
+          `Insufficient credits (40101): ${errorMsg}. ` +
+          `Please add credits to your DataForSEO account: https://app.dataforseo.com/billing`
+        );
+      }
+      
+      throw new Error(`API Status: ${responseData.status_code} - ${errorMsg}`);
+    }
+
+    return responseData;
     
-    throw new Error(`API Status: ${errorCode} - ${errorMessage}. See your login details here: https://app.dataforseo.com/api-access`);
+  } catch (error: any) {
+    // Re-throw our custom errors
+    if (error.message.includes('DataForSEO') || error.message.includes('API Status')) {
+      throw error;
+    }
+    
+    // Network or other errors
+    console.error(`❌ Request failed:`, error);
+    throw new Error(
+      `Failed to connect to DataForSEO API: ${error.message}. ` +
+      `Check your internet connection and DataForSEO service status.`
+    );
   }
-
-  // ✅ CHECK IF DATAFORSEO RETURNED AN ERROR IN THE RESPONSE
-  if (responseData.status_code && responseData.status_code !== 20000) {
-    const errorMsg = responseData.status_message || 'Unknown error';
-    console.error(`❌ DataForSEO API Error: ${responseData.status_code} - ${errorMsg}`);
-    throw new Error(`API Status: ${responseData.status_code} - ${errorMsg}`);
-  }
-
-  return responseData;
 }
 
 // Get advertisers data for a keyword
@@ -248,16 +304,21 @@ export async function getAdTrafficForecast(
   return null;
 }
 
-// Main analysis function
+// ✅ FIXED: Main analysis function with correct signature
 export async function analyzeKeywords(
   keywords: string[],
   login: string,
   password: string,
+  brandDomain?: string,
   includeOrganicPositions: boolean = true,
-  onProgress?: (progress: { current: number; total: number; keyword: string }) => void
+  includeAdTrafficForecast: boolean = false,
+  onProgress?: (current: number, total: number) => void
 ): Promise<KeywordResult[]> {
   
   console.log(`🎯 Starting analysis for ${keywords.length} keywords...`);
+  console.log(`   Brand domain: ${brandDomain || 'none'}`);
+  console.log(`   Organic positions: ${includeOrganicPositions}`);
+  console.log(`   Ad traffic forecast: ${includeAdTrafficForecast}`);
   
   // Get metrics for all keywords at once
   const metricsMap = await getKeywordMetrics(keywords, login, password);
@@ -268,14 +329,14 @@ export async function analyzeKeywords(
     const keyword = keywords[i];
     
     if (onProgress) {
-      onProgress({ current: i + 1, total: keywords.length, keyword });
+      onProgress(i + 1, keywords.length);
     }
     
     try {
       const [advertiserData, organicPositions] = await Promise.all([
         getAdvertisersData(keyword, login, password),
         includeOrganicPositions 
-          ? getOrganicPositions(keyword, login, password)
+          ? getOrganicPositions(keyword, login, password, brandDomain)
           : Promise.resolve([])
       ]);
       
@@ -290,7 +351,7 @@ export async function analyzeKeywords(
         advertisers: advertiserData.advertisers,
         metrics,
         organic_positions: includeOrganicPositions ? organicPositions : undefined,
-        ad_traffic_forecast: null,
+        forecast: null,
         recommendation: 'TEST',
       });
       
@@ -306,7 +367,7 @@ export async function analyzeKeywords(
           competition: 0,
         },
         organic_positions: undefined,
-        ad_traffic_forecast: null,
+        forecast: null,
         recommendation: 'TEST',
       });
     }
