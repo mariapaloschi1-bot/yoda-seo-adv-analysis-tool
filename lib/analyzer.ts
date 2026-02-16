@@ -86,7 +86,9 @@ function determineRecommendation(
   // BRAND KEYWORD LOGIC
   if (isBrand) {
     // If brand has 3-4+ top-3 organic positions → NO paid
-    const top3Count = organic_positions.filter(pos => pos <= 3).length;
+    // ✅ SAFE HANDLING: organic_positions is optional
+    const organicPos = organic_positions || [];
+    const top3Count = organicPos.filter(pos => pos <= 3).length;
     
     if (top3Count >= 3) {
       return 'NO_PAID';
@@ -173,7 +175,7 @@ export function exportToCSV(results: KeywordResult[]): string {
 }
 
 /**
- * Get recommendation color and icon
+ * Get recommendation color and icon (NO EMOJI)
  */
 export function getRecommendationStyle(rec: string): {
   color: string;
@@ -184,26 +186,26 @@ export function getRecommendationStyle(rec: string): {
     case 'YES_PAID':
       return {
         color: 'text-red-400',
-        icon: '🔴',
-        label: 'SI - Investi in Paid'
+        icon: '',
+        label: 'Invest in Paid'
       };
     case 'NO_PAID':
       return {
         color: 'text-green-400',
-        icon: '🟢',
-        label: 'NO - Focus SEO'
+        icon: '',
+        label: 'Focus on SEO'
       };
     case 'TEST':
       return {
         color: 'text-yellow-400',
-        icon: '🟡',
-        label: 'TEST - Budget limitato'
+        icon: '',
+        label: 'Test with Limited Budget'
       };
     default:
       return {
         color: 'text-gray-400',
-        icon: '⚪',
-        label: 'Sconosciuto'
+        icon: '',
+        label: 'Unknown'
       };
   }
 }
